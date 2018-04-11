@@ -20,6 +20,7 @@ import scala.collection.JavaConversions._
 
 import org.apache.hadoop.fs.Path
 import org.apache.log4j.{Level, Logger}
+import org.apache.spark.SparkContext
 import org.apache.spark.ml.param.{Param, ParamMap}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -28,7 +29,7 @@ import org.testng.annotations.{DataProvider, Test}
 
 import com.linkedin.photon.avro.generated.BayesianLinearModelAvro
 import com.linkedin.photon.ml.Types.UniqueSampleId
-import com.linkedin.photon.ml.{DataValidationType, HyperparameterTunerName, HyperparameterTuningMode, TaskType}
+import com.linkedin.photon.ml.{Constants, DataValidationType, TaskType}
 import com.linkedin.photon.ml.cli.game.GameDriver
 import com.linkedin.photon.ml.constants.MathConst
 import com.linkedin.photon.ml.data.{FixedEffectDataConfiguration, GameConverters, RandomEffectDataConfiguration}
@@ -92,14 +93,17 @@ class GameTrainingDriverIntegTest extends SparkTestUtils with GameTestUtils with
     assertTrue(fs.exists(allFixedEffectModelPath))
     assertTrue(fs.exists(bestFixedEffectModelPath))
 
-    assertModelSane(allFixedEffectModelPath, expectedNumCoefficients = 14985)
-    assertModelSane(bestFixedEffectModelPath, expectedNumCoefficients = 14985)
+    val allModel = loadBayesianLinearModel(sc, allFixedEffectModelPath)
+    val bestModel = loadBayesianLinearModel(sc, bestFixedEffectModelPath)
+
+    assertModelSane(allModel, expectedNumCoefficients = 14985)
+    assertModelSane(bestModel, expectedNumCoefficients = 14985)
 
     assertTrue(evaluateModel(new Path(outputDir, s"${GameTrainingDriver.MODELS_DIR}/0")) < errorThreshold)
     assertTrue(evaluateModel(new Path(outputDir, GameTrainingDriver.BEST_MODEL_DIR)) < errorThreshold)
 
-    assertTrue(AvroUtils.modelContainsIntercept(sc, allFixedEffectModelPath))
-    assertTrue(AvroUtils.modelContainsIntercept(sc, bestFixedEffectModelPath))
+    assertModelContainsIntercept(allModel)
+    assertModelContainsIntercept(bestModel)
   }
 
   /**
@@ -132,9 +136,10 @@ class GameTrainingDriverIntegTest extends SparkTestUtils with GameTestUtils with
     assertFalse(fs.exists(allFixedEffectModelPath))
     assertTrue(fs.exists(bestFixedEffectModelPath))
 
-    assertModelSane(bestFixedEffectModelPath, expectedNumCoefficients = 14983)
+    val bestModel = loadBayesianLinearModel(sc, bestFixedEffectModelPath)
+    assertModelSane(bestModel, expectedNumCoefficients = 14983)
     assertTrue(evaluateModel(new Path(outputDir, GameTrainingDriver.BEST_MODEL_DIR)) < errorThreshold)
-    assertTrue(AvroUtils.modelContainsIntercept(sc, bestFixedEffectModelPath))
+    assertModelContainsIntercept(bestModel)
   }
 
   /**
@@ -166,14 +171,17 @@ class GameTrainingDriverIntegTest extends SparkTestUtils with GameTestUtils with
     assertTrue(fs.exists(allFixedEffectModelPath))
     assertTrue(fs.exists(bestFixedEffectModelPath))
 
-    assertModelSane(allFixedEffectModelPath, expectedNumCoefficients = 14984)
-    assertModelSane(bestFixedEffectModelPath, expectedNumCoefficients = 14984)
+    val allModel = loadBayesianLinearModel(sc, allFixedEffectModelPath)
+    val bestModel = loadBayesianLinearModel(sc, bestFixedEffectModelPath)
+
+    assertModelSane(allModel, expectedNumCoefficients = 14984)
+    assertModelSane(bestModel, expectedNumCoefficients = 14984)
 
     assertTrue(evaluateModel(new Path(outputDir, s"${GameTrainingDriver.MODELS_DIR}/0")) < errorThreshold)
     assertTrue(evaluateModel(new Path(outputDir, GameTrainingDriver.BEST_MODEL_DIR)) < errorThreshold)
 
-    assertFalse(AvroUtils.modelContainsIntercept(sc, allFixedEffectModelPath))
-    assertFalse(AvroUtils.modelContainsIntercept(sc, bestFixedEffectModelPath))
+    assertModelContainsIntercept(allModel, expectedIntercept = false)
+    assertModelContainsIntercept(bestModel, expectedIntercept = false)
   }
 
   /**
@@ -200,11 +208,14 @@ class GameTrainingDriverIntegTest extends SparkTestUtils with GameTestUtils with
     assertTrue(fs.exists(allFixedEffectModelPath))
     assertTrue(fs.exists(bestFixedEffectModelPath))
 
-    assertModelSane(allFixedEffectModelPath, expectedNumCoefficients = 1)
-    assertModelSane(bestFixedEffectModelPath, expectedNumCoefficients = 1)
+    val allModel = loadBayesianLinearModel(sc, allFixedEffectModelPath)
+    val bestModel = loadBayesianLinearModel(sc, bestFixedEffectModelPath)
 
-    assertTrue(AvroUtils.modelContainsIntercept(sc, allFixedEffectModelPath))
-    assertTrue(AvroUtils.modelContainsIntercept(sc, bestFixedEffectModelPath))
+    assertModelSane(allModel, expectedNumCoefficients = 1)
+    assertModelSane(bestModel, expectedNumCoefficients = 1)
+
+    assertModelContainsIntercept(allModel)
+    assertModelContainsIntercept(bestModel)
   }
 
   /**
@@ -230,11 +241,14 @@ class GameTrainingDriverIntegTest extends SparkTestUtils with GameTestUtils with
     assertTrue(fs.exists(allFixedEffectModelPath))
     assertTrue(fs.exists(bestFixedEffectModelPath))
 
-    assertModelSane(allFixedEffectModelPath, expectedNumCoefficients = 1)
-    assertModelSane(bestFixedEffectModelPath, expectedNumCoefficients = 1)
+    val allModel = loadBayesianLinearModel(sc, allFixedEffectModelPath)
+    val bestModel = loadBayesianLinearModel(sc, bestFixedEffectModelPath)
 
-    assertTrue(AvroUtils.modelContainsIntercept(sc, allFixedEffectModelPath))
-    assertTrue(AvroUtils.modelContainsIntercept(sc, bestFixedEffectModelPath))
+    assertModelSane(allModel, expectedNumCoefficients = 1)
+    assertModelSane(bestModel, expectedNumCoefficients = 1)
+
+    assertModelContainsIntercept(allModel)
+    assertModelContainsIntercept(bestModel)
   }
 
   /**
@@ -255,9 +269,13 @@ class GameTrainingDriverIntegTest extends SparkTestUtils with GameTestUtils with
     val fs = outputDir.getFileSystem(sc.hadoopConfiguration)
 
     modelPaths.foreach { path =>
+
       assertTrue(fs.exists(path))
-      assertModelSane(path, expectedNumCoefficients = 21)
-      assertTrue(AvroUtils.modelContainsIntercept(sc, path))
+
+      val model = loadBayesianLinearModel(sc, path)
+
+      assertModelSane(model, expectedNumCoefficients = 21)
+      assertModelContainsIntercept(model)
     }
 
     assertTrue(evaluateModel(new Path(outputDir, GameTrainingDriver.BEST_MODEL_DIR)) < errorThreshold)
@@ -285,9 +303,13 @@ class GameTrainingDriverIntegTest extends SparkTestUtils with GameTestUtils with
     val fs = outputDir.getFileSystem(sc.hadoopConfiguration)
 
     modelPaths.foreach { path =>
+
       assertTrue(fs.exists(path))
-      assertModelSane(path, expectedNumCoefficients = 20)
-      assertFalse(AvroUtils.modelContainsIntercept(sc, path))
+
+      val model = loadBayesianLinearModel(sc, path)
+
+      assertModelSane(model, expectedNumCoefficients = 20)
+      assertModelContainsIntercept(model, expectedIntercept = false)
     }
 
     assertTrue(evaluateModel(new Path(outputDir, GameTrainingDriver.BEST_MODEL_DIR)) < errorThreshold)
@@ -311,9 +333,13 @@ class GameTrainingDriverIntegTest extends SparkTestUtils with GameTestUtils with
     val fs = outputDir.getFileSystem(sc.hadoopConfiguration)
 
     modelPaths.foreach { path =>
+
       assertTrue(fs.exists(path))
-      assertModelSane(path, expectedNumCoefficients = 21)
-      assertTrue(AvroUtils.modelContainsIntercept(sc, path))
+
+      val model = loadBayesianLinearModel(sc, path)
+
+      assertModelSane(model, expectedNumCoefficients = 21)
+      assertModelContainsIntercept(model)
     }
 
     assertTrue(evaluateModel(new Path(outputDir, GameTrainingDriver.BEST_MODEL_DIR)) < errorThreshold)
@@ -338,8 +364,11 @@ class GameTrainingDriverIntegTest extends SparkTestUtils with GameTestUtils with
     val fs = outputDir.getFileSystem(sc.hadoopConfiguration)
 
     assertTrue(fs.exists(globalModelPath))
-    assertModelSane(globalModelPath, expectedNumCoefficients = 15019)
-    assertTrue(AvroUtils.modelContainsIntercept(sc, globalModelPath))
+
+    val globalModel = loadBayesianLinearModel(sc, globalModelPath)
+
+    assertModelSane(globalModel, expectedNumCoefficients = 15019)
+    assertModelContainsIntercept(globalModel)
 
     assertTrue(evaluateModel(new Path(outputDir, GameTrainingDriver.BEST_MODEL_DIR)) < errorThreshold)
   }
@@ -457,16 +486,16 @@ class GameTrainingDriverIntegTest extends SparkTestUtils with GameTestUtils with
     val fs = outputDir.getFileSystem(sc.hadoopConfiguration)
 
     assertTrue(fs.exists(globalModelPath))
-    assertModelSane(globalModelPath, expectedNumCoefficients = 0)
+    assertModelSane(loadBayesianLinearModel(sc, globalModelPath), expectedNumCoefficients = 0)
 
     assertTrue(fs.exists(userModelPath))
-    assertModelSane(userModelPath, expectedNumCoefficients = 0)
+    assertModelSane(loadBayesianLinearModel(sc, userModelPath), expectedNumCoefficients = 0)
 
     assertTrue(fs.exists(songModelPath))
-    assertModelSane(songModelPath, expectedNumCoefficients = 0)
+    assertModelSane(loadBayesianLinearModel(sc, songModelPath), expectedNumCoefficients = 0)
 
     assertTrue(fs.exists(artistModelPath))
-    assertModelSane(artistModelPath, expectedNumCoefficients = 0)
+    assertModelSane(loadBayesianLinearModel(sc, artistModelPath), expectedNumCoefficients = 0)
   }
 
   /**
@@ -544,23 +573,6 @@ class GameTrainingDriverIntegTest extends SparkTestUtils with GameTestUtils with
         .put(GameTrainingDriver.rootOutputDirectory, outputDir)
         .put(GameTrainingDriver.featureBagsDirectory, featuresDir)
         .put(GameTrainingDriver.dataValidation, DataValidationType.VALIDATE_FULL))
-  }
-
-  /**
-   * Perform a very basic sanity check on the model.
-   *
-   * @param path Path to the model coefficients file
-   * @param expectedNumCoefficients Expected number of non-zero coefficients
-   * @return True if the model is sane
-   */
-  private def assertModelSane(path: Path, expectedNumCoefficients: Int): Unit = {
-
-    val modelAvro = AvroUtils.readFromSingleAvro[BayesianLinearModelAvro](
-      sc,
-      path.toString,
-      BayesianLinearModelAvro.getClassSchema.toString)
-
-    assertEquals(modelAvro.head.getMeans.count(x => x.getValue != 0), expectedNumCoefficients)
   }
 
   /**
@@ -802,7 +814,7 @@ object GameTrainingDriverIntegTest {
    *
    * @return Arguments to train a model
    */
-  def fixedEffectSeriousRunArgs: ParamMap =
+  private def fixedEffectSeriousRunArgs: ParamMap =
     defaultArgs
       .put(GameTrainingDriver.featureShardConfigurations, fixedEffectFeatureShardConfigs)
       .put(GameTrainingDriver.coordinateUpdateSequence, Seq(fixedEffectCoordinateId))
@@ -813,7 +825,7 @@ object GameTrainingDriverIntegTest {
    *
    * @return Arguments to train a model
    */
-  def fixedEffectToyRunArgs: ParamMap =
+  private def fixedEffectToyRunArgs: ParamMap =
     defaultArgs
       .put(GameTrainingDriver.featureShardConfigurations, fixedEffectFeatureShardConfigs)
       .put(GameTrainingDriver.coordinateUpdateSequence, Seq(fixedEffectCoordinateId))
@@ -824,7 +836,7 @@ object GameTrainingDriverIntegTest {
    *
    * @return Arguments to train a model
    */
-  def randomEffectSeriousRunArgs: ParamMap =
+  private def randomEffectSeriousRunArgs: ParamMap =
     defaultArgs
       .put(GameTrainingDriver.featureShardConfigurations, randomEffectFeatureShardConfigs)
       .put(GameTrainingDriver.coordinateUpdateSequence, randomEffectCoordinateIds)
@@ -835,7 +847,7 @@ object GameTrainingDriverIntegTest {
    *
    * @return Arguments to train a model
    */
-  def randomEffectToyRunArgs: ParamMap =
+  private def randomEffectToyRunArgs: ParamMap =
     defaultArgs
       .put(GameTrainingDriver.featureShardConfigurations, randomEffectFeatureShardConfigs)
       .put(GameTrainingDriver.coordinateUpdateSequence, randomEffectCoordinateIds)
@@ -846,7 +858,7 @@ object GameTrainingDriverIntegTest {
    *
    * @return Arguments to train a model
    */
-  def mixedEffectSeriousRunArgs: ParamMap =
+  private def mixedEffectSeriousRunArgs: ParamMap =
     defaultArgs
       .put(GameTrainingDriver.featureShardConfigurations, mixedEffectFeatureShardConfigs)
       .put(GameTrainingDriver.coordinateUpdateSequence, Seq(fixedEffectCoordinateId) ++ randomEffectCoordinateIds)
@@ -857,7 +869,7 @@ object GameTrainingDriverIntegTest {
    *
    * @return Arguments to train a model
    */
-  def mixedEffectToyRunArgs: ParamMap =
+  private def mixedEffectToyRunArgs: ParamMap =
     defaultArgs
       .put(GameTrainingDriver.featureShardConfigurations, mixedEffectFeatureShardConfigs)
       .put(GameTrainingDriver.coordinateUpdateSequence, Seq(fixedEffectCoordinateId) ++ randomEffectCoordinateIds)
@@ -868,7 +880,7 @@ object GameTrainingDriverIntegTest {
    *
    * @return Arguments to train a model
    */
-  def partialRetrainWithFixedBaseArgs: ParamMap =
+  private def partialRetrainWithFixedBaseArgs: ParamMap =
     defaultArgs
       .put(GameTrainingDriver.featureShardConfigurations, mixedEffectFeatureShardConfigs)
       .put(GameTrainingDriver.coordinateUpdateSequence, Seq(fixedEffectCoordinateId) ++ randomEffectCoordinateIds)
@@ -881,13 +893,25 @@ object GameTrainingDriverIntegTest {
    *
    * @return Arguments to train a model
    */
-  def partialRetrainWithRandomBaseArgs: ParamMap =
+  private def partialRetrainWithRandomBaseArgs: ParamMap =
     defaultArgs
       .put(GameTrainingDriver.featureShardConfigurations, mixedEffectFeatureShardConfigs)
       .put(GameTrainingDriver.coordinateUpdateSequence, Seq(fixedEffectCoordinateId) ++ randomEffectCoordinateIds)
       .put(GameTrainingDriver.coordinateConfigurations, fixedEffectOnlySeriousGameConfig)
       .put(GameTrainingDriver.modelInputDirectory, trainedRandomOnlyModelPath)
       .put(GameTrainingDriver.partialRetrainLockedCoordinates, randomEffectCoordinateIds.toSet)
+
+  /**
+   * Load a [[BayesianLinearModelAvro]] from an Avro file.
+   *
+   * @param sc The [[SparkContext]] for the Spark application
+   * @param path The path to the Avro file containing the model
+   * @return The first [[BayesianLinearModelAvro]] object in the file
+   */
+  private def loadBayesianLinearModel(sc: SparkContext, path: Path): BayesianLinearModelAvro =
+    AvroUtils
+      .readFromSingleAvro[BayesianLinearModelAvro](sc, path.toString, BayesianLinearModelAvro.getClassSchema.toString)
+      .head
 
   /**
    * Build the path to the model coefficients file, given some model properties.
@@ -909,7 +933,7 @@ object GameTrainingDriverIntegTest {
    * @param modelName The model name
    * @return Full path to model coefficients file
    */
-  def outputModelPath(outputDir: Path, modelType: String, modelName: String, modelPos: Int = 0): Path =
+  private def outputModelPath(outputDir: Path, modelType: String, modelName: String, modelPos: Int = 0): Path =
     modelPath(outputDir, s"${GameTrainingDriver.MODELS_DIR}/$modelPos", modelType, modelName)
 
   /**
@@ -920,6 +944,35 @@ object GameTrainingDriverIntegTest {
    * @param modelName The model name
    * @return Full path to model coefficients file
    */
-  def bestModelPath(outputDir: Path, modelType: String, modelName: String): Path =
+  private def bestModelPath(outputDir: Path, modelType: String, modelName: String): Path =
     modelPath(outputDir, GameTrainingDriver.BEST_MODEL_DIR, modelType, modelName)
+
+  /**
+   * Perform a very basic sanity check on a model: count the number of non-zero coefficients and compare to the
+   * expected number of such coefficients.
+   *
+   * @param model The model to sanity check
+   * @param expectedNumCoefficients Expected number of non-zero coefficients
+   */
+  private def assertModelSane(model: BayesianLinearModelAvro, expectedNumCoefficients: Int): Unit =
+    assertEquals(model.getMeans.count(_.getValue != 0), expectedNumCoefficients)
+
+  /**
+   * Check whether a model contains an intercept term or not.
+   *
+   * @param model A linear model in Avro format
+   * @param expectedIntercept The expected result: true if an intercept is expected, false otherwise
+   */
+  private def assertModelContainsIntercept(model: BayesianLinearModelAvro, expectedIntercept: Boolean = true): Unit = {
+
+    val intercept = model
+      .getMeans
+      .map { nameTermValueAvro =>
+        Utils.getFeatureKey(nameTermValueAvro.getName.toString, nameTermValueAvro.getTerm.toString)
+      }
+      .toSet
+      .contains(Constants.INTERCEPT_KEY)
+
+    assertEquals(intercept, expectedIntercept)
+  }
 }

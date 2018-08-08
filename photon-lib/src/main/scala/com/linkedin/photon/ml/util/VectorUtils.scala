@@ -209,6 +209,7 @@ object VectorUtils {
    * @param mllibVector The mllib vector
    * @return The Breeze vector
    */
+  @deprecated
   def mllibToBreeze(mllibVector: SparkVector): Vector[Double] =
 
     mllibVector match {

@@ -30,6 +30,9 @@ import com.linkedin.photon.ml.util.{Logging, VectorUtils}
  * @note variance is calculated by spark.ml to be unbiased, so based on N-1 degrees of freedom, which is the
  * standard statistical practice. A degree of freedom is lost when using an estimated mean to compute the variance.
  *
+ * @todo need to replace the MultivariateStatisticalSummary with the spark.ml.stat.Summarizer
+ * (as part of the changes from spark.mllib to spark.ml)
+ *
  * @param count The number of samples in the dataset
  * @param mean Vector of feature mean values for the dataset
  * @param variance Vector of feature variance values for the dataset

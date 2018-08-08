@@ -102,6 +102,13 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
         "coordinate, but the shifts and factors are different for each shard.",
       PhotonParamValidators.nonEmpty[TraversableOnce, (CoordinateId, NormalizationContext)])
 
+  val featureShardStatistics: Param[Map[FeatureShardId, FeatureDataStatistics]] =
+    ParamUtils.createParam[Map[FeatureShardId, FeatureDataStatistics]](
+    "feature shard statistics",
+    "A map of shard name to feature space statistical summary. " +
+      "Used to filter random effect features by binomial proportions.",
+    PhotonParamValidators.nonEmpty[TraversableOnce, (FeatureShardId, BasicStatisticalSummary)])
+
   val initialModel: Param[GameModel] = ParamUtils.createParam(
     "initial model",
     "Prior model to use as a starting point for training.")
@@ -153,6 +160,9 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
 
   def setCoordinateNormalizationContexts(value: Map[CoordinateId, NormalizationContext]): this.type =
     set(coordinateNormalizationContexts, value)
+
+  def setFeatureShardStatistics(value: Map[FeatureShardId, FeatureDataStatistics]) : this.type =
+    set(featureShardStatistics, value)
 
   def setInitialModel(value: GameModel): this.type = set(initialModel, value)
 
@@ -507,7 +517,12 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
             None
           }
 
-          val rawRandomEffectDataset = RandomEffectDataset(gameDataset, reConfig, rePartitioner, existingModelKeysRddOpt)
+          val rawRandomEffectDataSet = RandomEffectDataSet(
+              gameDataSet,
+              reConfig,
+              rePartitioner,
+              existingModelKeysRddOpt,
+              get(featureShardStatistics))
             .setName(s"Random Effect Dataset: $coordinateId")
             .persistRDD(StorageLevel.DISK_ONLY)
             .materialize()

@@ -20,6 +20,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{Partitioner, SparkContext}
+import org.slf4j.Logger
 
 import com.linkedin.photon.ml.Types.{FeatureShardId, REId, REType, UniqueSampleId}
 import com.linkedin.photon.ml.constants.MathConst
@@ -230,6 +231,7 @@ object RandomEffectDataset {
    * @return A new random effect dataset with the given configuration
    */
   protected[ml] def apply(
+      logger: Logger,
       gameDataset: RDD[(UniqueSampleId, GameDatum)],
       randomEffectDataConfiguration: RandomEffectDataConfiguration,
       randomEffectPartitioner: Partitioner,
@@ -249,11 +251,19 @@ object RandomEffectDataset {
       .toArray
 
     val rawActiveData = generateActiveData(
+      logger,
       gameDataset,
       randomEffectDataConfiguration,
       randomEffectPartitioner,
       existingModelKeysRddOpt)
-    val activeData = featureSelectionOnActiveData(rawActiveData, randomEffectDataConfiguration)
+
+    val activeData = featureSelectionOnActiveData(
+        rawActiveData,
+        randomEffectDataConfiguration,
+        featureShardStatsMapOpt,
+        globalPositiveInstances)
+
+    rawActiveData.unpersist()
 
     val globalIdToIndividualIds = activeData
       .flatMap { case (individualId, localDataset) =>
@@ -282,6 +292,7 @@ object RandomEffectDataset {
    * @return The active dataset
    */
   private def generateActiveData(
+      logger: Logger,
       gameDataset: RDD[(UniqueSampleId, GameDatum)],
       randomEffectDataConfiguration: RandomEffectDataConfiguration,
       randomEffectPartitioner: Partitioner,
@@ -306,8 +317,9 @@ object RandomEffectDataset {
           randomEffectType)
       }
       .getOrElse(keyedRandomEffectDataset.groupByKey(randomEffectPartitioner))
+      .persist(StorageLevel.MEMORY_AND_DISK)
 
-    randomEffectDataConfiguration
+    val countedRandomEffectDataSet = randomEffectDataConfiguration
       .numActiveDataPointsLowerBound
       .map { activeDataLowerBound =>
         existingModelKeysRddOpt match {
@@ -329,7 +341,24 @@ object RandomEffectDataset {
         }
       }
       .getOrElse(groupedRandomEffectDataset)
+
+    val filteredRandomEffectDataset = countedRandomEffectDataset
+      .filter { case (_, data) =>
+        val posSamples = data.count(_._2.label > MathConst.POSITIVE_RESPONSE_THRESHOLD)
+
+        (posSamples != 0) && (posSamples != data.size)
+      }
       .mapValues(data => LocalDataset(data.toArray, isSortedByFirstIndex = false))
+      .persist(StorageLevel.MEMORY_AND_DISK)
+
+    if (logger.isDebugEnabled) {
+      logger.debug(s"*** Total # random effects = ${groupedRandomEffectDataset.count()}")
+      logger.debug(s"*** # random effects with both pos + neg samples = ${filteredRandomEffectDataset.count()}")
+    }
+
+    groupedRandomEffectDataset.unpersist()
+
+    filteredRandomEffectDataset
   }
 
   /**
@@ -469,7 +498,7 @@ object RandomEffectDataset {
         val broadcastNonBinaryFeatureIndices = activeData.sparkContext.broadcast(nonBinaryIndices)
         val broadcastGlobalPositiveInstances = activeData.sparkContext.broadcast(globalPositiveInstances)
         val broadcastGlobalFeatureInstances = activeData.sparkContext.broadcast(globalFeatureShardStats.numNonzeros.toArray)
-        val filteredActiveData = activeData.mapValues{ localDataset =>
+        val filteredActiveData = activeData.mapValues { localDataset =>
           localDataset.filterFeaturesByRatioCIBound(
             broadcastGlobalFeatureInstances.value,
             broadcastGlobalPositiveInstances.value,

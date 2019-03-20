@@ -16,12 +16,12 @@ package com.linkedin.photon.ml.algorithm
 
 import com.linkedin.photon.ml.data.{Dataset, FixedEffectDataset, RandomEffectDataset}
 import com.linkedin.photon.ml.function.ObjectiveFunctionHelper.ObjectiveFunctionFactory
-import com.linkedin.photon.ml.function.{DistributedObjectiveFunction, ObjectiveFunction, SingleNodeObjectiveFunction}
+import com.linkedin.photon.ml.function.{DistributedObjectiveFunction, ObjectiveFunction}
 import com.linkedin.photon.ml.model.Coefficients
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.optimization.DistributedOptimizationProblem
 import com.linkedin.photon.ml.optimization.VarianceComputationType.VarianceComputationType
-import com.linkedin.photon.ml.optimization.game.{CoordinateOptimizationConfiguration, FixedEffectOptimizationConfiguration, RandomEffectOptimizationConfiguration}
+import com.linkedin.photon.ml.optimization.game.{CoordinateOptimizationConfiguration, FixedEffectOptimizationConfiguration, RandomEffectOptimizationConfiguration, RandomEffectOptimizationProblem}
 import com.linkedin.photon.ml.sampling.DownSampler
 import com.linkedin.photon.ml.sampling.DownSamplerHelper.DownSamplerFactory
 import com.linkedin.photon.ml.supervised.model.GeneralizedLinearModel
@@ -86,17 +86,10 @@ object CoordinateFactory {
 
       case (
           rEDataset: RandomEffectDataset,
-          rEOptConfig: RandomEffectOptimizationConfiguration,
-          singleNodeLossFunction: SingleNodeObjectiveFunction) =>
+          _,
+          _) =>
 
-        RandomEffectCoordinate(
-          rEDataset,
-          rEOptConfig,
-          singleNodeLossFunction,
-          glmConstructor,
-          normalizationContext,
-          varianceComputationType,
-          trackState).asInstanceOf[Coordinate[D]]
+        new RandomEffectCoordinate(rEDataset, RandomEffectOptimizationProblem(rEDataset)).asInstanceOf[Coordinate[D]]
 
       case _ =>
         throw new UnsupportedOperationException(

@@ -17,6 +17,7 @@ package com.linkedin.photon.ml.data
 import breeze.linalg.Vector
 
 import com.linkedin.photon.ml.data.scoring.ScoredGameDatum
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBPoint}
 
 /**
  * Representation of a single GAME data point.
@@ -53,6 +54,18 @@ protected[ml] class GameDatum(
    */
   def generateLabeledPointWithFeatureShardId(featureShardId: String): LabeledPoint = {
     LabeledPoint(label = response, features = featureShardContainer(featureShardId), offset = offset, weight = weight)
+  }
+
+  def generateXGBoostLabeledPoint(featureShardId: String): XGBPoint = {
+    val features = featureShardContainer(featureShardId)
+
+    XGBPoint(
+      response.toFloat,
+      features.keysIterator.toArray,
+      features.valuesIterator.map(_.toFloat).toArray,
+      weight.toFloat,
+      group = -1,
+      offset.toFloat)
   }
 
   /**

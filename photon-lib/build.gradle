@@ -26,6 +26,7 @@ dependencies {
     exclude group: 'org.apache.avro', module: 'avro-mapred'
   }
   compile('org.slf4j:slf4j-api:1.7.9')
+  compile('ml.dmlc:xgboost4j:0.72')
 
   compile("org.apache.avro:avro-mapred:1.7.7$modifier" as String) {
     // We don't need to import netty, and including it can cause version conflicts in downstream projects

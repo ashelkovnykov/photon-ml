@@ -14,13 +14,15 @@
  */
 package com.linkedin.photon.ml.model
 
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.rdd.RDD._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{HashPartitioner, SparkContext}
 
+import com.linkedin.photon.ml.TaskType
 import com.linkedin.photon.ml.TaskType.TaskType
-import com.linkedin.photon.ml.Types.{UniqueSampleId, REId, REType, FeatureShardId}
+import com.linkedin.photon.ml.Types.{FeatureShardId, REId, REType, UniqueSampleId}
 import com.linkedin.photon.ml.data.GameDatum
 import com.linkedin.photon.ml.data.scoring.{CoordinateDataScores, ModelDataScores}
 import com.linkedin.photon.ml.spark.RDDLike
@@ -34,13 +36,13 @@ import com.linkedin.photon.ml.supervised.model.GeneralizedLinearModel
  * @param featureShardId The feature shard id
  */
 class RandomEffectModel(
-    protected[ml] val modelsRDD: RDD[(REId, GeneralizedLinearModel)],
+    protected[ml] val modelsRDD: RDD[(REId, Booster)],
     val randomEffectType: REType,
     val featureShardId: FeatureShardId)
   extends DatumScoringModel
   with RDDLike {
 
-  override val modelType: TaskType = RandomEffectModel.determineModelType(modelsRDD)
+  override lazy val modelType: TaskType = TaskType.LOGISTIC_REGRESSION
 
   //
   // RandomEffectModel functions
@@ -52,7 +54,7 @@ class RandomEffectModel(
    * @param newModelsRdd The new underlying models, one per entity
    * @return A new [[RandomEffectModel]]
    */
-  def update(newModelsRdd: RDD[(REId, GeneralizedLinearModel)]): RandomEffectModel =
+  def update(newModelsRdd: RDD[(REId, Booster)]): RandomEffectModel =
     new RandomEffectModel(newModelsRdd, randomEffectType, featureShardId)
 
   //
@@ -103,18 +105,7 @@ class RandomEffectModel(
    * @return A model summary in String representation
    */
   override def toSummaryString: String = {
-
-    val stringBuilder = new StringBuilder("Random Effect Model:")
-
-    stringBuilder.append(s"\nRandom Effect Type: '$randomEffectType'")
-    stringBuilder.append(s"\nFeature Shard ID: '$featureShardId'")
-    stringBuilder.append(s"\nLength: ${modelsRDD.values.map(_.coefficients.means.length).stats()}")
-    stringBuilder.append(s"\nMean: ${modelsRDD.values.map(_.coefficients.meansL2Norm).stats()}")
-    if (modelsRDD.first()._2.coefficients.variancesOption.isDefined) {
-      stringBuilder.append(s"\nVariance: ${modelsRDD.values.map(_.coefficients.variancesL2NormOption.get).stats()}")
-    }
-
-    stringBuilder.toString()
+    ""
   }
 
   //
@@ -253,7 +244,7 @@ object RandomEffectModel {
    */
   private def score[T, V](
       dataPoints: RDD[(UniqueSampleId, GameDatum)],
-      modelsRDD: RDD[(REId, GeneralizedLinearModel)],
+      modelsRDD: RDD[(REId, Booster)],
       randomEffectType: REType,
       featureShardId: FeatureShardId,
       toScore: (GameDatum, Double) => T,
@@ -274,18 +265,21 @@ object RandomEffectModel {
       .map { case (uniqueId, gameDatum) =>
         (gameDatum.idTagToValueMap(randomEffectType), (uniqueId, gameDatum))
       }
-      .partitionBy(hashPartitioner)
+      .groupByKey(hashPartitioner)
       .zipPartitions(modelsRDD.partitionBy(hashPartitioner)) { (dataIt, modelIt) =>
 
         val lookupTable = modelIt.toMap
 
-        dataIt.map { case (id, (uid, datum)) =>
-          val score = lookupTable
-            .get(id)
-            .map(_.computeScore(datum.featureShardContainer(featureShardId)))
-            .getOrElse(0.0)
+        dataIt.flatMap { case (reid, data) =>
+          val xgbDataArray = data.map(_._2.generateXGBoostLabeledPoint(featureShardId))
+          val matrix = new DMatrix(xgbDataArray.iterator)
+          val rawScores = lookupTable(reid).predict(matrix)
 
-          (uid, toScore(datum, score))
+          data
+            .zip(rawScores)
+            .map { case ((uid, datum), scoreArray) =>
+              (uid, toScore(datum, scoreArray(0).toDouble))
+            }
         }
       }
 

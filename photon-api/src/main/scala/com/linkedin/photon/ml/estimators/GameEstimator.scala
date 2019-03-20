@@ -503,7 +503,6 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
             gameDataset,
             reConfig,
             rePartitioner,
-            existingModelKeysRddOpt,
             StorageLevel.DISK_ONLY)
           randomEffectDataset.setName(s"Random Effect Data Set: $coordinateId")
 

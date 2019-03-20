@@ -12,21 +12,25 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.linkedin.photon.build.plugins
+package com.linkedin.photon.ml.optimization
 
-/**
- * An extension to configure ScalaResolverPlugin
- */
-class ScalaResolverExtension {
+import ml.dmlc.xgboost4j.LabeledPoint
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost}
 
-  Closure _initAction
+import com.linkedin.photon.ml.Types.UniqueSampleId
 
-  ScalaResolverExtension(Closure initAction) {
-    _initAction = initAction
+class XGBoostOptimizationProblem(params: Map[String, Any]) {
+
+  import XGBoostOptimizationProblem._
+
+  def run(input: Iterable[(UniqueSampleId, LabeledPoint)]): Booster = {
+
+    val data = new DMatrix(input.map(_._2).iterator)
+
+    XGBoost.train(data, params, ROUND)
   }
+}
 
-  void targetScalaVersion(String targetVersion) {
-    _initAction.call(targetVersion)
-  }
-
+object XGBoostOptimizationProblem {
+  val ROUND = 2
 }

@@ -19,6 +19,7 @@ dependencies {
   compile(project(":photon-lib$scalaSuffix"))
   compile("org.scalanlp:breeze$scalaSuffix:0.11.2")
   compile('com.linkedin.paldb:paldb:1.1.0')
+  compile('ml.dmlc:xgboost4j:0.72')
 
   testCompile(project(":photon-test-utils$scalaSuffix"))
   testCompile(project(path: ":photon-lib$scalaSuffix", configuration: 'testOutput'))

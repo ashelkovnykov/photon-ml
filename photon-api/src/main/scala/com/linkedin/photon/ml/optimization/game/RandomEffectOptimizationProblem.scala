@@ -19,11 +19,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
 import com.linkedin.photon.ml.Types.REId
-import com.linkedin.photon.ml.function.SingleNodeObjectiveFunction
-import com.linkedin.photon.ml.model.Coefficients
-import com.linkedin.photon.ml.optimization.SingleNodeOptimizationProblem
+import com.linkedin.photon.ml.optimization.XGBoostOptimizationProblem
 import com.linkedin.photon.ml.spark.RDDLike
-import com.linkedin.photon.ml.supervised.model.GeneralizedLinearModel
 
 /**
  * Representation for a random effect optimization problem.
@@ -32,14 +29,10 @@ import com.linkedin.photon.ml.supervised.model.GeneralizedLinearModel
  * A: In the future, we want to be able to have unique regularization weights per optimization problem. In addition, it
  *    may be useful to have access to the optimization state of each individual problem.
  *
- * @tparam Objective The objective function to optimize
  * @param optimizationProblems The component optimization problems (one per individual) for a random effect
  *                             optimization problem
  */
-protected[ml] class RandomEffectOptimizationProblem[Objective <: SingleNodeObjectiveFunction](
-    val optimizationProblems: RDD[(REId, SingleNodeOptimizationProblem[Objective])],
-    glmConstructor: Coefficients => GeneralizedLinearModel,
-    val isTrackingState: Boolean)
+protected[ml] class RandomEffectOptimizationProblem(val optimizationProblems: RDD[(REId, XGBoostOptimizationProblem)])
   extends RDDLike {
 
   // TODO: Need to refactor 'isTrackingState' out
@@ -103,27 +96,4 @@ protected[ml] class RandomEffectOptimizationProblem[Objective <: SingleNodeObjec
 
     this
   }
-
-  /**
-   * Create a default generalized linear model with 0-valued coefficients
-   *
-   * @param dimension The dimensionality of the model coefficients
-   * @return A model with zero coefficients
-   */
-  def initializeModel(dimension: Int): GeneralizedLinearModel =
-    glmConstructor(Coefficients.initializeZeroCoefficients(dimension))
-
-  /**
-   * Compute the regularization term value
-   *
-   * @param modelsRDD The trained models
-   * @return The combined regularization term value
-   */
-  def getRegularizationTermValue(modelsRDD: RDD[(REId, GeneralizedLinearModel)]): Double =
-    optimizationProblems
-      .join(modelsRDD)
-      .map {
-        case (_, (optimizationProblem, model)) => optimizationProblem.getRegularizationTermValue(model)
-      }
-      .reduce(_ + _)
 }

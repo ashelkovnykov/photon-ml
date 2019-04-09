@@ -18,6 +18,7 @@ import scala.util.Random
 
 import breeze.linalg.{DenseVector, SparseVector, Vector}
 import org.apache.spark.storage.StorageLevel
+import org.mockito.Mockito._
 import org.testng.Assert._
 import org.testng.annotations.{DataProvider, Test}
 
@@ -376,6 +377,82 @@ class RandomEffectDatasetIntegTest extends SparkTestUtils {
       .map(_._2)
 
     assertTrue(modifiedData.zip(scores.map(_._2)).forall { case (labeledPoint, score) => labeledPoint.offset == score})
+  }
+
+  /**
+   * Test that passive data generation will fail if there is more active data than total data.
+   */
+  @Test(expectedExceptions = Array(classOf[IllegalArgumentException]))
+  def testFailGeneratePassiveData(): Unit = sparkTest("testFailGeneratePassiveData"){
+
+    val partitioner = new LongHashPartitioner(NUM_PARTITIONS)
+    val rEID1 = "A"
+    val rEID2 = "B"
+    val uID1 = 1L
+    val uID2 = 2L
+
+    val mockLabeledPoint = mock(classOf[LabeledPoint])
+
+    val keyedData = Seq[(REId, (UniqueSampleId, LabeledPoint))]((rEID1, (uID1, mockLabeledPoint)))
+    val uniqueIds = Seq[(UniqueSampleId, REId)]((uID1, rEID1), (uID2, rEID2))
+
+    RandomEffectDataset.generatePassiveData(
+      sc.parallelize(keyedData),
+      sc.parallelize(uniqueIds).partitionBy(partitioner))
+  }
+
+  /**
+   * Test that passive data is stored in an empty [[org.apache.spark.rdd.RDD]] if all data is active data.
+   */
+  @Test
+  def testGenerateNoPassiveData(): Unit = sparkTest("testGenerateNoPassiveData"){
+
+    val partitioner = new LongHashPartitioner(NUM_PARTITIONS)
+    val rEID = "A"
+    val uID = 1L
+
+    val mockLabeledPoint = mock(classOf[LabeledPoint])
+
+    val keyedData = Seq[(REId, (UniqueSampleId, LabeledPoint))]((rEID, (uID, mockLabeledPoint)))
+    val uniqueIds = Seq[(UniqueSampleId, REId)]((uID, rEID))
+
+    val passiveData = RandomEffectDataset.generatePassiveData(
+      sc.parallelize(keyedData),
+      sc.parallelize(uniqueIds).partitionBy(partitioner))
+
+    assertTrue(passiveData.isEmpty())
+  }
+
+  /**
+   * Test that passive data can be correctly computed by subtracting active data from the total data.
+   */
+  @Test
+  def testGeneratePassiveData(): Unit = sparkTest("testGeneratePassiveData") {
+
+    val partitioner = new LongHashPartitioner(NUM_PARTITIONS)
+    val numUIDs = 10
+    val maxNumActiveUIDs = 5
+    val dataUIDs = (0 until numUIDs).map(_.toLong).toSet
+    val activeDataUIDs = (0 until maxNumActiveUIDs).map(_ => Random.nextInt(numUIDs).toLong).distinct
+
+    val dummyREId = "abc"
+    val dummyLabeledPoint = LabeledPoint(1D, DenseVector(1D, 2D, 3D))
+
+    val projectedKeyedData: Seq[(REId, (UniqueSampleId, LabeledPoint))] = dataUIDs
+      .map { uid =>
+        (dummyREId, (uid, dummyLabeledPoint))
+      }
+      .toSeq
+    val projectedKeyedDataset = sc.parallelize(projectedKeyedData, NUM_PARTITIONS)
+
+    val uniqueIds: Seq[(UniqueSampleId, REId)] = activeDataUIDs.map((_, dummyREId))
+    val uniqueIdsRDD = sc.parallelize(uniqueIds).partitionBy(partitioner)
+
+    val passiveData = RandomEffectDataset.generatePassiveData(projectedKeyedDataset, uniqueIdsRDD)
+    val passiveDataUIDs = passiveData.keys.collect.toSet
+
+    assertEquals(passiveData.count, passiveDataUIDs.size)
+    assertEquals(passiveDataUIDs, dataUIDs -- activeDataUIDs)
   }
 }
 

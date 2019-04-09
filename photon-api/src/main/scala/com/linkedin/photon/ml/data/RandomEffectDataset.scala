@@ -283,7 +283,7 @@ object RandomEffectDataset {
     val uniqueIdToRandomEffectIds = generateIdMap(activeData, uniqueIdPartitioner)
     uniqueIdToRandomEffectIds.persist(storageLevel).count
 
-    val passiveData = generatePassiveData(projectedKeyedGameDataset, uniqueIdToRandomEffectIds)
+    val passiveData = generatePassiveData(projectedKeyedGameDataset, uniqueIdToRandomEffectIds, uniqueIdPartitioner)
     passiveData.persist(storageLevel).count
 
     //
@@ -569,16 +569,30 @@ object RandomEffectDataset {
    *
    * @param projectedKeyedDataset The data for the given feature shard, keyed by the [[REId]]s for the given [[REType]]
    * @param activeUniqueIDs The unique IDs of the active dataset
+   * @param partitioner The partitioner to use for the passive dataset
    * @return The passive dataset
    */
   protected[data] def generatePassiveData(
       projectedKeyedDataset: RDD[(REId, (UniqueSampleId, LabeledPoint))],
-      activeUniqueIDs: RDD[(UniqueSampleId, REId)]): RDD[(UniqueSampleId, (REId, LabeledPoint))] = {
+      activeUniqueIDs: RDD[(UniqueSampleId, REId)],
+      partitioner: Partitioner): RDD[(UniqueSampleId, (REId, LabeledPoint))] = {
 
-    val passiveDataPool = projectedKeyedDataset.map { case (rEID, (uniqueID, labeledPoint)) =>
-      (uniqueID, (rEID, labeledPoint))
+    val inputDataCount = projectedKeyedDataset.count()
+    val activeDataCount = activeUniqueIDs.count()
+
+    require(inputDataCount >= activeDataCount, s"More active data than input data: $inputDataCount < $activeDataCount")
+
+    if (activeDataCount < inputDataCount) {
+      val passiveDataPool = projectedKeyedDataset.map { case (rEID, (uniqueID, labeledPoint)) =>
+        (uniqueID, (rEID, labeledPoint))
+      }
+
+      passiveDataPool.subtractByKey(activeUniqueIDs)
+    } else {
+      activeUniqueIDs
+        .sparkContext
+        .emptyRDD[(UniqueSampleId, (REId, LabeledPoint))]
+        .partitionBy(partitioner)
     }
-
-    passiveDataPool.subtractByKey(activeUniqueIDs)
   }
 }

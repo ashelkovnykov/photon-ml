@@ -20,6 +20,7 @@ import java.util.{Map => JMap}
 import scala.collection.JavaConversions._
 import scala.io.Source
 
+import ml.dmlc.xgboost4j.scala.Booster
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkContext
@@ -29,7 +30,7 @@ import org.apache.spark.storage.StorageLevel
 
 import com.linkedin.photon.avro.generated.{BayesianLinearModelAvro, FeatureSummarizationResultAvro}
 import com.linkedin.photon.ml.TaskType.TaskType
-import com.linkedin.photon.ml.Types.{CoordinateId, FeatureShardId}
+import com.linkedin.photon.ml.Types.{CoordinateId, FeatureShardId, REId}
 import com.linkedin.photon.ml.cli.game.training.GameTrainingDriver
 import com.linkedin.photon.ml.estimators.GameEstimator
 import com.linkedin.photon.ml.index.{IndexMap, IndexMapLoader}
@@ -227,9 +228,9 @@ object ModelProcessingUtils {
                 s"Missing feature shard definition for '$featureShardId' required by coordinate '$name' in loaded model")
           }
           val modelsRDDInputPath = new Path(innerPath, AvroConstants.COEFFICIENTS)
-          val modelsRDD = loadModelsRDDFromHDFS(modelsRDDInputPath.toString, indexMapLoader, sc)
+//          val modelsRDD = loadModelsRDDFromHDFS(modelsRDDInputPath.toString, indexMapLoader, sc)
 
-          (name, new RandomEffectModel(modelsRDD, randomEffectType, featureShardId).persistRDD(storageLevel))
+          (name, new RandomEffectModel(sc.emptyRDD[(REId, Booster)], randomEffectType, featureShardId).persistRDD(storageLevel))
         }
 
     } else {
@@ -352,19 +353,19 @@ object ModelProcessingUtils {
    * @param sparsityThreshold The model sparsity threshold, or the minimum absolute value considered nonzero
    */
   private def saveModelsRDDToHDFS(
-      modelsRDD: RDD[(String, GeneralizedLinearModel)],
+      modelsRDD: RDD[(String, Booster)],
       featureMapLoader: IndexMapLoader,
       outputDir: String,
       sparsityThreshold: Double): Unit = {
 
-    val linearModelAvro = modelsRDD.mapPartitions { iter =>
-      val featureMap = featureMapLoader.indexMapForRDD()
-      iter.map { case (modelId, model) =>
-        AvroUtils.convertGLMModelToBayesianLinearModelAvro(model, modelId, featureMap, sparsityThreshold)
-      }
-    }
-
-    AvroUtils.saveAsAvro(linearModelAvro, outputDir, BayesianLinearModelAvro.getClassSchema.toString)
+//    val linearModelAvro = modelsRDD.mapPartitions { iter =>
+//      val featureMap = featureMapLoader.indexMapForRDD()
+//      iter.map { case (modelId, model) =>
+//        AvroUtils.convertGLMModelToBayesianLinearModelAvro(model, modelId, featureMap, sparsityThreshold)
+//      }
+//    }
+//
+//    AvroUtils.saveAsAvro(linearModelAvro, outputDir, BayesianLinearModelAvro.getClassSchema.toString)
   }
 
   /**

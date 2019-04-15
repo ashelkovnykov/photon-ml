@@ -85,11 +85,12 @@ object CoordinateFactory {
             trackState)).asInstanceOf[Coordinate[D]]
 
       case (
-          rEDataset: RandomEffectDataset,
-          _,
-          _) =>
+        rEDataset: RandomEffectDataset,
+        rEOptConfig: RandomEffectOptimizationConfiguration,
+        _,
+        _) =>
 
-        new RandomEffectCoordinate(rEDataset, RandomEffectOptimizationProblem(rEDataset)).asInstanceOf[Coordinate[D]]
+        new RandomEffectCoordinate(rEDataset, RandomEffectOptimizationProblem(rEDataset, rEOptConfig)).asInstanceOf[Coordinate[D]]
 
       case _ =>
         throw new UnsupportedOperationException(

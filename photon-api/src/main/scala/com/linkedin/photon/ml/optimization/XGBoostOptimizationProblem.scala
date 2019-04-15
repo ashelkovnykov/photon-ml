@@ -19,18 +19,12 @@ import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost}
 
 import com.linkedin.photon.ml.Types.UniqueSampleId
 
-class XGBoostOptimizationProblem(params: Map[String, Any]) {
-
-  import XGBoostOptimizationProblem._
+class XGBoostOptimizationProblem(params: Map[String, Any], numTrees: Int) {
 
   def run(input: Iterable[(UniqueSampleId, LabeledPoint)]): Booster = {
 
     val data = new DMatrix(input.map(_._2).iterator)
 
-    XGBoost.train(data, params, ROUND)
+    XGBoost.train(data, params, numTrees)
   }
-}
-
-object XGBoostOptimizationProblem {
-  val ROUND = 2
 }

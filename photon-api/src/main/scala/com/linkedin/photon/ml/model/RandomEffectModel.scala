@@ -42,7 +42,7 @@ class RandomEffectModel(
   extends DatumScoringModel
   with RDDLike {
 
-  override lazy val modelType: TaskType = TaskType.LOGISTIC_REGRESSION
+  override lazy val modelType: TaskType = TaskType.LINEAR_REGRESSION
 
   //
   // RandomEffectModel functions

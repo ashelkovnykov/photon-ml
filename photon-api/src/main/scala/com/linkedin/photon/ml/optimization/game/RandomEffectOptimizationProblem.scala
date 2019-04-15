@@ -19,6 +19,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
 import com.linkedin.photon.ml.Types.REId
+import com.linkedin.photon.ml.data.RandomEffectDataset
 import com.linkedin.photon.ml.optimization.XGBoostOptimizationProblem
 import com.linkedin.photon.ml.spark.RDDLike
 
@@ -95,5 +96,28 @@ protected[ml] class RandomEffectOptimizationProblem(val optimizationProblems: RD
     optimizationProblems.count()
 
     this
+  }
+}
+
+object RandomEffectOptimizationProblem {
+
+  /**
+   * Factory method to create new RandomEffectOptimizationProblems.
+   *
+   * @param randomEffectDataset The training data
+   * @return A new RandomEffectOptimizationProblem
+   */
+  protected[ml] def apply(
+      randomEffectDataset: RandomEffectDataset,
+      randomEffectOptimizationConfiguration: RandomEffectOptimizationConfiguration): RandomEffectOptimizationProblem = {
+
+    val numTrees = randomEffectOptimizationConfiguration.numTrees
+    val params = randomEffectOptimizationConfiguration.xgbParams
+
+    val optimizationProblems = randomEffectDataset
+      .activeData
+      .mapValues(_ => new XGBoostOptimizationProblem(params, numTrees))
+
+    new RandomEffectOptimizationProblem(optimizationProblems)
   }
 }

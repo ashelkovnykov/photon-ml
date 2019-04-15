@@ -90,7 +90,9 @@ case class RandomEffectOptimizationConfiguration(
     override val regularizationContext: RegularizationContext = NoRegularizationContext,
     override val regularizationWeight: Double = 0D,
     override val regularizationWeightRange: Option[DoubleRange] = None,
-    override val elasticNetParamRange: Option[DoubleRange] = None)
+    override val elasticNetParamRange: Option[DoubleRange] = None,
+    xgbParams: Map[String, Any],
+    numTrees: Int)
   extends GLMOptimizationConfiguration(
     optimizerConfig,
     regularizationContext,

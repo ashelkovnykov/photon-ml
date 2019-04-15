@@ -72,6 +72,12 @@ object ScoptParserHelpers extends Logging {
   val COORDINATE_OPT_CONFIG_REG_WEIGHTS = "reg.weights"
   val COORDINATE_OPT_CONFIG_REG_WEIGHT_RANGE = "reg.weight.range"
   val COORDINATE_OPT_CONFIG_DOWN_SAMPLING_RATE = "down.sampling.rate"
+  // XGBoost Configs
+  val COORDINATE_OPT_CONFIG_XGB_BOOSTER = "booster"
+  val COORDINATE_OPT_CONFIG_XGB_ETA = "eta"
+  val COORDINATE_OPT_CONFIG_XGB_NUM_TREES = "num.trees"
+  val COORDINATE_OPT_CONFIG_XGB_MAX_DEPTH = "max_depth"
+  val COORDINATE_OPT_CONFIG_XGB_FEATURE_SELECTOR = "feature_selector"
 
   val COORDINATE_CONFIG_REQUIRED_ARGS = Map(
     (COORDINATE_CONFIG_NAME, "<name>"),
@@ -81,7 +87,12 @@ object ScoptParserHelpers extends Logging {
     (COORDINATE_OPT_CONFIG_MAX_ITER, "<value>"),
     (COORDINATE_OPT_CONFIG_TOLERANCE, "<value>"))
   val COORDINATE_CONFIG_RANDOM_EFFECT_REQUIRED_ARGS = Map(
-    (COORDINATE_DATA_CONFIG_RANDOM_EFFECT_TYPE, "<type>"))
+    (COORDINATE_DATA_CONFIG_RANDOM_EFFECT_TYPE, "<type>"),
+    (COORDINATE_OPT_CONFIG_XGB_BOOSTER, "{gbtree, gblinear, dart}"),
+    (COORDINATE_OPT_CONFIG_XGB_ETA, "[0, 1]"),
+    (COORDINATE_OPT_CONFIG_XGB_NUM_TREES, "[1, Inf]"),
+    (COORDINATE_OPT_CONFIG_XGB_MAX_DEPTH, "[1, Inf]"),
+    (COORDINATE_OPT_CONFIG_XGB_FEATURE_SELECTOR, "{cyclic, shuffle, random, greedy, thrifty}"))
   val COORDINATE_CONFIG_OPTIONAL_ARGS = Map(
     (COORDINATE_OPT_CONFIG_REGULARIZATION, s"[${RegularizationType.values.mkString(", ")}]"),
     (COORDINATE_OPT_CONFIG_REG_ALPHA, "<value>"),
@@ -230,6 +241,17 @@ object ScoptParserHelpers extends Logging {
     val config = reTypeOpt match {
       // Random effect coordinate
       case Some(reType) =>
+        val xgbBooster = input(COORDINATE_OPT_CONFIG_XGB_BOOSTER)
+        val xgbEta = input(COORDINATE_OPT_CONFIG_XGB_ETA).toDouble
+        val xgbTrees = input(COORDINATE_OPT_CONFIG_XGB_NUM_TREES).toInt
+        val xgbDepth = input(COORDINATE_OPT_CONFIG_XGB_MAX_DEPTH).toInt
+        val xgbSelector = input(COORDINATE_OPT_CONFIG_XGB_FEATURE_SELECTOR)
+        val xgbParams = Map[String, Any](
+          COORDINATE_OPT_CONFIG_XGB_BOOSTER -> xgbBooster,
+          COORDINATE_OPT_CONFIG_XGB_ETA -> xgbEta,
+          COORDINATE_OPT_CONFIG_XGB_MAX_DEPTH -> xgbDepth,
+          COORDINATE_OPT_CONFIG_XGB_FEATURE_SELECTOR -> xgbSelector)
+
         val dataConfig = RandomEffectDataConfiguration(
           reType,
           featureShard,
@@ -241,7 +263,9 @@ object ScoptParserHelpers extends Logging {
           optimizerConfig,
           regularizationContext,
           regularizationWeightRange = regularizationWeightRange,
-          elasticNetParamRange = elasticNetParamRange)
+          elasticNetParamRange = elasticNetParamRange,
+          xgbParams = xgbParams,
+          numTrees = xgbTrees)
 
         // Log warnings for fixed effect coordinate settings found in random effect coordinate
         COORDINATE_CONFIG_FIXED_ONLY_ARGS.foreach { config =>
@@ -454,7 +478,12 @@ object ScoptParserHelpers extends Logging {
         case feOptConfig: FixedEffectOptimizationConfiguration =>
           argsMap += (COORDINATE_OPT_CONFIG_DOWN_SAMPLING_RATE -> feOptConfig.downSamplingRate.toString)
 
-        case _ =>
+        case reOptConfig: RandomEffectOptimizationConfiguration =>
+          argsMap += (COORDINATE_OPT_CONFIG_XGB_BOOSTER -> reOptConfig.xgbParams(COORDINATE_OPT_CONFIG_XGB_BOOSTER).toString)
+          argsMap += (COORDINATE_OPT_CONFIG_XGB_ETA -> reOptConfig.xgbParams(COORDINATE_OPT_CONFIG_XGB_ETA).toString)
+          argsMap += (COORDINATE_OPT_CONFIG_XGB_MAX_DEPTH -> reOptConfig.xgbParams(COORDINATE_OPT_CONFIG_XGB_MAX_DEPTH).toString)
+          argsMap += (COORDINATE_OPT_CONFIG_XGB_FEATURE_SELECTOR -> reOptConfig.xgbParams(COORDINATE_OPT_CONFIG_XGB_FEATURE_SELECTOR).toString)
+          argsMap += (COORDINATE_OPT_CONFIG_XGB_NUM_TREES -> reOptConfig.numTrees.toString)
       }
 
       optConfig.regularizationContext.regularizationType match {

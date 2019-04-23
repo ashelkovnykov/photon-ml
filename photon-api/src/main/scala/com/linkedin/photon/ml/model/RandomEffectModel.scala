@@ -42,7 +42,7 @@ class RandomEffectModel(
   extends DatumScoringModel
   with RDDLike {
 
-  override lazy val modelType: TaskType = TaskType.LINEAR_REGRESSION
+  override lazy val modelType: TaskType = TaskType.LOGISTIC_REGRESSION
 
   //
   // RandomEffectModel functions
@@ -273,7 +273,10 @@ object RandomEffectModel {
         dataIt.flatMap { case (reid, data) =>
           val xgbDataArray = data.map(_._2.generateXGBoostLabeledPoint(featureShardId))
           val matrix = new DMatrix(xgbDataArray.iterator)
-          val rawScores = lookupTable(reid).predict(matrix)
+          val rawScores = lookupTable.get(reid) match {
+            case Some(booster) => booster.predict(matrix)
+            case None => xgbDataArray.map(labeledPoint => Array[Float](labeledPoint.baseMargin)).toArray
+          }
 
           data
             .zip(rawScores)

@@ -225,7 +225,47 @@ protected[ml] class RandomEffectDataset(
    * @return A summary of the object in string representation
    */
   override def toSummaryString: String = {
-    ""
+
+    val summaryStringBuilder : StringBuilder = new StringBuilder()
+
+    val numActiveSamples = uniqueIdToRandomEffectIds.count()
+    val numActiveSamplesStats = activeData.values.map(_.length).stats()
+    val bucketizedActiveSampleStats = activeData
+      .values
+      .map { array =>
+        val length = array.length
+        val roundedLength = (length.toDouble / 50).ceil.toInt
+        val key = roundedLength * 50
+
+        (key, 1)
+      }
+      .foldByKey(0)(_ + _)
+    val bucketizedScores = activeData
+      .values
+      .flatMap(_.map(_._2))
+      .map(xgbPoint => (xgbPoint.label.toInt, 1))
+      .foldByKey(0)(_ + _)
+
+    summaryStringBuilder.append(s"numActiveSamples: $numActiveSamples\n")
+    summaryStringBuilder.append(s"numActiveSamplesStats: $numActiveSamplesStats\n")
+    summaryStringBuilder.append("Samples Histogram:\n")
+    bucketizedActiveSampleStats
+      .collect
+      .sortBy(_._1)
+      .foreach { case (bucket, count) =>
+        summaryStringBuilder.append(f"$bucket%8d = $count%4d")
+        summaryStringBuilder.append("\n")
+      }
+    summaryStringBuilder.append("Scores Histogram:\n")
+    bucketizedScores
+      .collect
+      .sortBy(_._1)
+      .foreach { case (score, count) =>
+        summaryStringBuilder.append(f"$score = $count%10d")
+        summaryStringBuilder.append("\n")
+      }
+
+    summaryStringBuilder.mkString
   }
 }
 

@@ -557,6 +557,11 @@ object CoordinateDescent {
       val scores = coordinate.score(newModel)
       scores.persistRDD(StorageLevel.DISK_ONLY)
 
+      ////////////////////////////////////////////////////////////////////////////////////
+      logger.debug("Printing 10 example scores from trees:")
+      scores.scores.take(10).foreach { case (_, score) => logger.debug(score.toString)}
+      ////////////////////////////////////////////////////////////////////////////////////
+
       currentModels.put(coordinateId, newModel)
       currentScores.put(coordinateId, scores)
       previousScores = scores

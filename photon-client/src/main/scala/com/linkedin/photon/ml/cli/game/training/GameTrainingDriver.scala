@@ -636,17 +636,17 @@ object GameTrainingDriver extends GameDriver {
    *
    * @param estimator The estimator to use for training and validation
    * @param trainingData The training data
-   * @param validationData The validation data
+   * @param validationDataOpt The validation data
    * @param models The previously trained and evaluated models
    */
   private def runHyperparameterTuning(
       estimator: GameEstimator,
       trainingData: DataFrame,
-      validationData: Option[DataFrame],
+      validationDataOpt: Option[DataFrame],
       models: Seq[GameEstimator.GameResult]): Seq[GameEstimator.GameResult] =
 
-    validationData match {
-      case Some(testData) if getOrDefault(hyperParameterTuning) != HyperparameterTuningMode.NONE =>
+    validationDataOpt match {
+      case Some(validationData) if getOrDefault(hyperParameterTuning) != HyperparameterTuningMode.NONE =>
 
         val (_, baseConfig, evaluationResults) = models.head
 
@@ -660,12 +660,13 @@ object GameTrainingDriver extends GameDriver {
           estimator,
           baseConfig,
           trainingData,
-          testData,
+          validationData,
           isOptMax)
 
         val observations = evaluationFunction.convertObservations(models)
 
-        val hyperparameterTuner = HyperparameterTunerFactory[GameEstimator.GameResult](getOrDefault(hyperParameterTunerName))
+        val hyperparameterTuner =
+          HyperparameterTunerFactory[GameEstimator.GameResult](getOrDefault(hyperParameterTunerName))
 
         hyperparameterTuner.search(iteration, dimension, mode, evaluationFunction, observations)
 

@@ -322,13 +322,12 @@ object RandomEffectDataset {
     val randomEffectType = randomEffectDataConfiguration.randomEffectType
     val featureShardId = randomEffectDataConfiguration.featureShardId
 
-    gameDataset
-      .map { case (uniqueId, gameData) =>
-        val randomEffectId = gameData.idTagToValueMap(randomEffectType)
-        val labeledPoint = gameData.generateLabeledPointWithFeatureShardId(featureShardId)
+    gameDataset.map { case (uniqueId, gameDatum) =>
+      val randomEffectId = gameDatum.idTagToValueMap(randomEffectType)
+      val labeledPoint = gameDatum.generateLabeledPointWithFeatureShardId(featureShardId)
 
-        (randomEffectId, (uniqueId, labeledPoint))
-      }
+      (randomEffectId, (uniqueId, labeledPoint))
+    }
   }
 
   /**

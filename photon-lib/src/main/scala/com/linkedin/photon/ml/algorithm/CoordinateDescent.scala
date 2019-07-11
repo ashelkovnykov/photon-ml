@@ -434,7 +434,7 @@ object CoordinateDescent {
     }
 
     //
-    // Subsequent coordinates, subsequent iterations
+    // Subsequent iterations
     //
 
     while (i <= iterations) {
@@ -573,7 +573,7 @@ object CoordinateDescent {
     }
 
     //
-    // Subsequent coordinates, subsequent iterations
+    // Subsequent iterations
     //
 
     bestModels = currentModels.toMap

@@ -274,7 +274,7 @@ object DataValidators extends Logging {
    */
   private def validateDataFrame(
       dataset: DataFrame,
-      perSampleValidators: List[(((Row, String) => Boolean), InputColumnsNames.Value, String)],
+      perSampleValidators: List[((Row, String) => Boolean, InputColumnsNames.Value, String)],
       inputColumnsNames: InputColumnsNames,
       featureSectionKeys: Set[FeatureShardId]): Seq[String] = {
 

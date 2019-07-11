@@ -444,12 +444,24 @@ object AvroDataReader {
     schemaFields
       .flatMap { field: StructField =>
         field.dataType match {
-          case IntegerType => checkNull(record, field).orElse(Some(Utils.getIntAvro(record, field.name)))
-          case StringType => Some(Utils.getStringAvro(record, field.name, field.nullable))
-          case BooleanType => checkNull(record, field).orElse(Some(Utils.getBooleanAvro(record, field.name)))
-          case DoubleType => checkNull(record, field).orElse(Some(Utils.getDoubleAvro(record, field.name)))
-          case FloatType => checkNull(record, field).orElse(Some(Utils.getFloatAvro(record, field.name)))
-          case LongType => checkNull(record, field).orElse(Some(Utils.getLongAvro(record, field.name)))
+          case IntegerType =>
+            checkNull(record, field).orElse(Some(Utils.getIntAvro(record, field.name)))
+
+          case StringType =>
+            Some(Utils.getStringAvro(record, field.name, field.nullable))
+
+          case BooleanType =>
+            checkNull(record, field).orElse(Some(Utils.getBooleanAvro(record, field.name)))
+
+          case DoubleType =>
+            checkNull(record, field).orElse(Some(Utils.getDoubleAvro(record, field.name)))
+
+          case FloatType =>
+            checkNull(record, field).orElse(Some(Utils.getFloatAvro(record, field.name)))
+
+          case LongType =>
+            checkNull(record, field).orElse(Some(Utils.getLongAvro(record, field.name)))
+
           case MapType(_, valueType, _) =>
             val mapAvro = Utils.getMapAvro(record, field.name, field.nullable)
             if (mapAvro == null) {
@@ -466,6 +478,7 @@ object AvroDataReader {
                 case _ => None
               }
             }
+
           case _ =>
             // Unsupported field type. Drop this for now.
             None

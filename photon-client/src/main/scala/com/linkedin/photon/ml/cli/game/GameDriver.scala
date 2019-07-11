@@ -204,7 +204,9 @@ trait GameDriver extends PhotonParams {
           featureShardConfig.featureBags,
           featureShardConfig.hasIntercept,
           sc)
-        .map { case (k, v) => Utils.getFeatureKey(k.name, k.term) -> v }
+        .map { case (k, v) =>
+          Utils.getFeatureKey(k.name, k.term) -> v
+        }
       val indexMapLoader = new DefaultIndexMapLoader(sc, featureMap)
 
       (shardId, indexMapLoader)

@@ -36,7 +36,7 @@ class AvroDataReaderIntegTest extends SparkTestUtils {
   import AvroDataReaderIntegTest._
 
   /**
-   * Test reading avro data with mixed value types in map
+   * Test reading Avro data with mixed value types in map.
    */
   @Test
   def testAvroWithVariousTypeMap(): Unit = sparkTest("avroMapTest") {

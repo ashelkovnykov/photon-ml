@@ -64,7 +64,7 @@ abstract class Optimizer[-Function <: ObjectiveFunction](
    *
    * @param state The initial state
    */
-  private def setAbsTolerances(state: OptimizerState) = {
+  private def setAbsTolerances(state: OptimizerState): Unit = {
     lossAbsTolerance = state.loss * relTolerance
     gradientAbsTolerance = norm(state.gradient, 2) * relTolerance
   }
@@ -74,7 +74,7 @@ abstract class Optimizer[-Function <: ObjectiveFunction](
    *
    * @param state The current state
    */
-  private def updateCurrentState(state: OptimizerState) = {
+  private def updateCurrentState(state: OptimizerState): Unit = {
     statesTracker match {
       case Some(tracker) =>
         currentState match {
@@ -244,6 +244,6 @@ abstract class Optimizer[-Function <: ObjectiveFunction](
 }
 
 object Optimizer {
-  val DEFAULT_CONSTRAINT_MAP = None
-  val DEFAULT_TRACKING_STATE = true
+  protected val DEFAULT_CONSTRAINT_MAP: Option[Map[Int, (Double, Double)]] = None
+  protected val DEFAULT_TRACKING_STATE: Boolean = true
 }

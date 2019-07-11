@@ -86,7 +86,8 @@ object AvroUtils {
       sc: SparkContext,
       inputDir: String,
       minNumPartitions: Int): RDD[T] =
-    sc.hadoopFile[AvroWrapper[T], NullWritable, AvroInputFormat[T]](inputDir, minNumPartitions)
+    sc
+      .hadoopFile[AvroWrapper[T], NullWritable, AvroInputFormat[T]](inputDir, minNumPartitions)
       .map { case (k, _) => k.datum() }
 
   /**

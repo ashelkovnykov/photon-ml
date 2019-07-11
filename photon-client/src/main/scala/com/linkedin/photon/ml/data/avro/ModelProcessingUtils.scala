@@ -29,7 +29,7 @@ import org.apache.spark.storage.StorageLevel
 
 import com.linkedin.photon.avro.generated.{BayesianLinearModelAvro, FeatureSummarizationResultAvro}
 import com.linkedin.photon.ml.TaskType.TaskType
-import com.linkedin.photon.ml.Types.{CoordinateId, FeatureShardId}
+import com.linkedin.photon.ml.Types.{CoordinateId, FeatureShardId, REId}
 import com.linkedin.photon.ml.cli.game.training.GameTrainingDriver
 import com.linkedin.photon.ml.estimators.GameEstimator
 import com.linkedin.photon.ml.index.{IndexMap, IndexMapLoader}
@@ -352,7 +352,7 @@ object ModelProcessingUtils {
    * @param sparsityThreshold The model sparsity threshold, or the minimum absolute value considered nonzero
    */
   private def saveModelsRDDToHDFS(
-      modelsRDD: RDD[(String, GeneralizedLinearModel)],
+      modelsRDD: RDD[(REId, GeneralizedLinearModel)],
       featureMapLoader: IndexMapLoader,
       outputDir: String,
       sparsityThreshold: Double): Unit = {
@@ -380,7 +380,7 @@ object ModelProcessingUtils {
   private def loadModelsRDDFromHDFS(
       coefficientsRDDInputDir: String,
       indexMapLoader: IndexMapLoader,
-      sc: SparkContext): RDD[(String, GeneralizedLinearModel)] = {
+      sc: SparkContext): RDD[(REId, GeneralizedLinearModel)] = {
 
     val modelAvros = AvroUtils.readAvroFilesInDir[BayesianLinearModelAvro](
       sc,

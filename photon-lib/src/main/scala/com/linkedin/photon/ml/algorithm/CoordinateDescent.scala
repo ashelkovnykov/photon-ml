@@ -262,7 +262,7 @@ object CoordinateDescent {
       case rddModel: RDDLike =>
         rddModel
           .setName(s"Model for coordinate '$coordinateId', iteration $iteration")
-          .persistRDD(StorageLevel.DISK_ONLY)
+//          .persistRDD(StorageLevel.DISK_ONLY)
           .materialize()
 
       case _ =>
@@ -341,7 +341,10 @@ object CoordinateDescent {
    * @param coordinateDataScores The residual scores to cache
    */
   protected[algorithm] def persistSummedScores(coordinateDataScores: CoordinateDataScores): Unit =
-    coordinateDataScores.setName(s"Summed scores").persistRDD(StorageLevel.MEMORY_AND_DISK_SER).materialize()
+    coordinateDataScores
+      .setName(s"Summed scores")
+//      .persistRDD(StorageLevel.MEMORY_AND_DISK_SER)
+      .materialize()
 
   /**
    * Remove a cached model from cache.
@@ -404,7 +407,7 @@ object CoordinateDescent {
     val currentScores: mutable.Map[CoordinateId, CoordinateDataScores] =
       mutable.Map(firstCoordinateId -> previousScores)
 
-    previousScores.persistRDD(StorageLevel.DISK_ONLY)
+//    previousScores.persistRDD(StorageLevel.DISK_ONLY)
 
     //
     // Subsequent coordinates, first iteration
@@ -426,7 +429,7 @@ object CoordinateDescent {
         Some(summedScores))
 
       val scores = coordinate.score(newModel)
-      scores.persistRDD(StorageLevel.DISK_ONLY)
+//      scores.persistRDD(StorageLevel.DISK_ONLY)
 
       currentModels.put(coordinateId, newModel)
       currentScores.put(coordinateId, scores)
@@ -456,7 +459,7 @@ object CoordinateDescent {
         unpersistModel(oldModelOpt.get)
 
         val scores = coordinate.score(newModel)
-        scores.persistRDD(StorageLevel.DISK_ONLY)
+//        scores.persistRDD(StorageLevel.DISK_ONLY)
 
         currentModels.put(coordinateId, newModel)
         currentScores.put(coordinateId, scores)
@@ -533,7 +536,7 @@ object CoordinateDescent {
       validationData,
       evaluationSuite)
 
-    previousScores.persistRDD(StorageLevel.DISK_ONLY)
+//    previousScores.persistRDD(StorageLevel.DISK_ONLY)
 
     //
     // Subsequent coordinates, first iteration
@@ -555,7 +558,7 @@ object CoordinateDescent {
         Some(summedScores))
 
       val scores = coordinate.score(newModel)
-      scores.persistRDD(StorageLevel.DISK_ONLY)
+//      scores.persistRDD(StorageLevel.DISK_ONLY)
 
       currentModels.put(coordinateId, newModel)
       currentScores.put(coordinateId, scores)
@@ -601,7 +604,7 @@ object CoordinateDescent {
         }
 
         val scores = coordinate.score(newModel)
-        scores.persistRDD(StorageLevel.DISK_ONLY)
+//        scores.persistRDD(StorageLevel.DISK_ONLY)
 
         currentModels.put(coordinateId, newModel)
         currentScores.put(coordinateId, scores)

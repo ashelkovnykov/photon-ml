@@ -60,7 +60,7 @@ class EvaluationSuite(
       .mapValues { case (score, (label, offset, weight)) =>
         (score + offset, label, weight)
       }
-      .persist()
+//      .persist()
 
     val evaluations = evaluators
       .map {

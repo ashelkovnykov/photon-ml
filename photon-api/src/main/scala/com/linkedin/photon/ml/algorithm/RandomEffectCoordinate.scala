@@ -288,7 +288,7 @@ object RandomEffectCoordinate {
       .join(randomEffectOptimizationProblem.optimizationProblems)
 
     // Left join the models to data and optimization problems for cases where we have a prior model but no new data
-    val newModelsAndTrackers = initialRandomEffectModelOpt
+    val newModels = initialRandomEffectModelOpt
       .map { randomEffectModel =>
         randomEffectModel
           .modelsRDD
@@ -296,41 +296,31 @@ object RandomEffectCoordinate {
           .mapValues {
             case (localModel, Some((localDataset, optimizationProblem))) =>
               val trainingLabeledPoints = localDataset.dataPoints.map(_._2)
-              val updatedModel = optimizationProblem.run(trainingLabeledPoints, localModel)
-              val stateTrackers = optimizationProblem.getStatesTracker
 
-              (updatedModel, stateTrackers)
+              optimizationProblem.run(trainingLabeledPoints, localModel)
 
             case (localModel, _) =>
-              (localModel, None)
+              localModel
           }
       }
       .getOrElse {
         dataAndOptimizationProblems.mapValues { case (localDataset, optimizationProblem) =>
           val trainingLabeledPoints = localDataset.dataPoints.map(_._2)
-          val newModel = optimizationProblem.run(trainingLabeledPoints)
-          val stateTrackers = optimizationProblem.getStatesTracker
 
-          (newModel, stateTrackers)
+          optimizationProblem.run(trainingLabeledPoints)
         }
       }
-      .setName(s"Updated models and state trackers for random effect ${randomEffectDataset.randomEffectType}")
-      .persist(StorageLevel.MEMORY_ONLY)
 
     val newRandomEffectModel = new RandomEffectModel(
-      newModelsAndTrackers.mapValues(_._1),
+      newModels,
       randomEffectDataset.randomEffectType,
       randomEffectDataset.featureShardId)
 
-    val optimizationTracker: Option[RandomEffectOptimizationTracker] =
-      if (randomEffectOptimizationProblem.isTrackingState) {
-        val stateTrackers = newModelsAndTrackers.flatMap(_._2._2)
-
-        Some(RandomEffectOptimizationTracker(stateTrackers))
-
-      } else {
-        None
-      }
+    val optimizationTracker = if (randomEffectOptimizationProblem.isTrackingState) {
+      Some(RandomEffectOptimizationTracker(dataAndOptimizationProblems.values.map(_._2.getStatesTracker.get)))
+    } else {
+      None
+    }
 
     (newRandomEffectModel, optimizationTracker)
   }

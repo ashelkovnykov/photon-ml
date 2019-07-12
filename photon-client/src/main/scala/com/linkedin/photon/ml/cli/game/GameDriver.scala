@@ -196,7 +196,7 @@ trait GameDriver extends PhotonParams {
       allFeatureBagKeys,
       sc)
     // persist [[NameAndTerm]] feature [[RDD]]'s as they may be used multiple times below
-    nameAndTermFeatureMap.foreach { case (_, v) => v.persist(StorageLevel.MEMORY_ONLY_SER) }
+//    nameAndTermFeatureMap.foreach { case (_, v) => v.persist(StorageLevel.MEMORY_ONLY_SER) }
     val featureShardIdToFeatureMapLoader = shardConfigs.map { case (shardId, featureShardConfig) =>
       val featureMap = NameAndTermFeatureMapUtils
         .getFeatureNameAndTermToIndexMap(

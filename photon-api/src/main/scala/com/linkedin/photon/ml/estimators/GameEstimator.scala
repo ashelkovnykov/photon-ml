@@ -331,11 +331,13 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
 
     // Transform the GAME training data set into fixed and random effect specific datasets
     val gameDataset = Timed("Process training data from raw DataFrame to RDD of samples") {
-      prepareGameDataset(data, featureShards, additionalCols)
+      prepareGameDataset(data, featureShards, additionalCols).persist(StorageLevel.DISK_ONLY)
     }
     val trainingDatasets = Timed("Prepare training data") {
       prepareTrainingDatasets(gameDataset)
     }
+
+    gameDataset.unpersist()
 
     // Transform the GAME validation data set into fixed and random effect specific data sets
     val validationDatasetAndEvaluationSuiteOpt = Timed("Prepare validation data, if any") {
@@ -375,7 +377,6 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
 
     // Purge the raw GAME data, training data, validation data, and normalization contexts in reverse order of
     // definition
-    gameDataset.unpersist()
     trainingDatasets.foreach { case (_, dataset) =>
       dataset match {
         case rddLike: RDDLike => rddLike.unpersistRDD()
@@ -451,7 +452,6 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
         getOrDefault(inputColumnNames))
       .partitionBy(new LongHashPartitioner(data.rdd.getNumPartitions))
       .setName("GAME training data")
-      .persist(StorageLevel.DISK_ONLY)
 
   /**
    * Construct one or more [[Dataset]]s from an [[RDD]] of samples.
@@ -472,7 +472,7 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
 
           val fixedEffectDataset = FixedEffectDataset(gameDataset, feConfig.featureShardId)
             .setName(s"Fixed Effect Dataset: $coordinateId")
-            .persistRDD(StorageLevel.DISK_ONLY)
+//            .persistRDD(StorageLevel.DISK_ONLY)
 
           if (logger.isDebugEnabled) {
             // Eval this only in debug mode, because the call to "toSummaryString" can be very expensive
@@ -547,7 +547,7 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
             getOrDefault(inputColumnNames))
           .partitionBy(partitioner)
           .setName("Validation Game dataset")
-          .persist(StorageLevel.DISK_ONLY)
+//          .persist(StorageLevel.DISK_ONLY)
       }
       val evaluationSuite = Timed("Prepare validation metric evaluators") {
         prepareValidationEvaluators(gameDataset)
@@ -583,11 +583,12 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
       }
     val evaluationSuite = EvaluationSuite(evaluators, validatingLabelsAndOffsetsAndWeights)
       .setName(s"Evaluation: validation data labels, offsets, and weights")
-      .persistRDD(StorageLevel.MEMORY_AND_DISK)
+//      .persistRDD(StorageLevel.MEMORY_AND_DISK)
 
     if (logger.isDebugEnabled) {
 
-      val randomScores = gameDataset.mapValues(_ => math.random).persist()
+      val randomScores = gameDataset.mapValues(_ => math.random)
+//        .persist()
 
       evaluationSuite
         .evaluate(randomScores)

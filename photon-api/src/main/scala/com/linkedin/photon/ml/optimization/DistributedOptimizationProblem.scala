@@ -161,7 +161,7 @@ protected[ml] class DistributedOptimizationProblem[Objective <: DistributedObjec
         case None => input.values
       })
       .setName("In memory fixed effect training dataset")
-      .persist(StorageLevel.MEMORY_AND_DISK)
+//      .persist(StorageLevel.MEMORY_AND_DISK)
     val result = run(data, initialModel)
 
     data.unpersist()

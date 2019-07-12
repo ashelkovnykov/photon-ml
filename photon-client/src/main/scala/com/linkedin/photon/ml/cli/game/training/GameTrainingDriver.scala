@@ -359,12 +359,12 @@ object GameTrainingDriver extends GameDriver {
     val (trainingData, featureIndexMapLoaders) = Timed(s"Read training data") {
       readTrainingData(avroDataReader, featureIndexMapLoadersOpt)
     }
+    trainingData.persist(StorageLevel.DISK_ONLY)
+
     val validationData = Timed(s"Read validation data") {
       readValidationData(avroDataReader, featureIndexMapLoaders)
     }
-
-    trainingData.persist(StorageLevel.DISK_ONLY)
-    validationData.map(_.persist(StorageLevel.DISK_ONLY))
+//    validationData.map(_.persist(StorageLevel.DISK_ONLY))
 
     val modelOpt = get(modelInputDirectory).map { modelDir =>
       Timed("Load model for warm-start training") {

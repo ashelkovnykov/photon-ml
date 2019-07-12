@@ -20,7 +20,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{HashPartitioner, Partitioner}
 
-import com.linkedin.photon.ml.Types.REId
+import com.linkedin.photon.ml.Types.{REId, UniqueSampleId}
 import com.linkedin.photon.ml.spark.BroadcastLike
 
 /**
@@ -116,7 +116,7 @@ object RandomEffectDatasetPartitioner {
    * @return A partitioner for one random effect model
    */
   def fromGameDataset(
-      gameDataset: RDD[(Long, GameDatum)],
+      gameDataset: RDD[(UniqueSampleId, GameDatum)],
       reConfig: RandomEffectDataConfiguration,
       partitionerCapacity: Int = 10000): RandomEffectDatasetPartitioner = {
 

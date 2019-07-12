@@ -211,7 +211,7 @@ protected[ml] class RandomEffectDataset(
 
     val stringBuilder = new StringBuilder("Random Effect Data Set:")
 
-    val activeDataValues = activeData.values.persist(StorageLevel.MEMORY_ONLY_SER)
+//    val activeDataValues = activeData.values.persist(StorageLevel.MEMORY_ONLY_SER)
 
     val numActiveSamples = activeUniqueIdToRandomEffectIds.count()
     val activeSampleWeightSum = activeDataValues.map(_.getWeights.map(_._2).sum).sum()
@@ -266,26 +266,26 @@ object RandomEffectDataset {
     //
 
     val keyedGameDataset = generateKeyedGameDataset(gameDataset, randomEffectDataConfiguration)
-    keyedGameDataset.persist(StorageLevel.MEMORY_ONLY_SER).count
+    keyedGameDataset.persist(StorageLevel.MEMORY_AND_DISK_SER)
 
     val projectors = generateLinearSubspaceProjectors(keyedGameDataset, randomEffectPartitioner)
-    projectors.persist(storageLevel).count
+    projectors.persist(storageLevel)
 
     val projectedKeyedGameDataset = generateProjectedDataset(keyedGameDataset, projectors, randomEffectPartitioner)
-    projectedKeyedGameDataset.persist(StorageLevel.MEMORY_ONLY_SER).count
+    projectedKeyedGameDataset.persist(StorageLevel.MEMORY_AND_DISK_SER)
 
     val activeData = generateActiveData(
       projectedKeyedGameDataset,
       randomEffectDataConfiguration,
       randomEffectPartitioner,
       existingModelKeysRddOpt)
-    activeData.persist(storageLevel).count
+    activeData.persist(storageLevel)
 
     val uniqueIdToRandomEffectIds = generateIdMap(activeData, uniqueIdPartitioner)
-    uniqueIdToRandomEffectIds.persist(storageLevel).count
+//    uniqueIdToRandomEffectIds.persist(storageLevel)
 
     val passiveData = generatePassiveData(projectedKeyedGameDataset, uniqueIdToRandomEffectIds)
-    passiveData.persist(storageLevel).count
+//    passiveData.persist(storageLevel).count
 
     //
     // Unpersist component RDDs

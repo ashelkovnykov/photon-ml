@@ -27,6 +27,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.DataTypes._
 import org.apache.spark.sql.types.{MapType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.storage.StorageLevel
 
 import com.linkedin.photon.ml.Constants
 import com.linkedin.photon.ml.data.{DataReader, InputColumnsNames}
@@ -90,7 +91,8 @@ class AvroDataReader(defaultFeatureColumn: String = InputColumnsNames.FEATURES_D
     require(paths.nonEmpty, "No paths specified. You must specify at least one input path.")
     require(numPartitions >= 0, "Partition count cannot be negative.")
 
-    val records = AvroUtils.readAvroFiles(sc, paths, numPartitions)
+    // TODO: Performance Test
+    val records = AvroUtils.readAvroFiles(sc, paths, numPartitions).persist(StorageLevel.MEMORY_AND_DISK_SER)
     val featureColumnMap = featureColumnConfigsMap.mapValues(_.featureBags).map(identity)
     val interceptColumnMap = featureColumnConfigsMap.mapValues(_.hasIntercept).map(identity)
     val indexMapLoaders = generateIndexMapLoaders(records, featureColumnMap, interceptColumnMap)
@@ -135,10 +137,12 @@ class AvroDataReader(defaultFeatureColumn: String = InputColumnsNames.FEATURES_D
     val records = AvroUtils.readAvroFiles(sc, paths, numPartitions)
     // Check partitions and force repartition if there are too few - sometimes AvroUtils does not respect min partitions
     // request
+    // Ideally we could unpersist this RDD when done, but it's unclear when the descendants will be used or whether they will be persisted. Thus, we do not unpersist.
+    // TODO: Performance Test
     val partitionedRecords = if (records.getNumPartitions < numPartitions) {
-      records.repartition(numPartitions)
+      records.repartition(numPartitions).persist(StorageLevel.MEMORY_AND_DISK_SER)
     } else {
-      records
+      records.persist(StorageLevel.MEMORY_AND_DISK_SER)
     }
 
     readMerged(partitionedRecords, indexMapLoaders, featureColumnMap)

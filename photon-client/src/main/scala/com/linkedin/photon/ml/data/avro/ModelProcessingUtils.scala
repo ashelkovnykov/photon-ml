@@ -229,7 +229,8 @@ object ModelProcessingUtils {
           val modelsRDDInputPath = new Path(innerPath, AvroConstants.COEFFICIENTS)
           val modelsRDD = loadModelsRDDFromHDFS(modelsRDDInputPath.toString, indexMapLoader, sc)
 
-          (name, new RandomEffectModel(modelsRDD, randomEffectType, featureShardId).persistRDD(storageLevel))
+//          (name, new RandomEffectModel(modelsRDD, randomEffectType, featureShardId).persistRDD(storageLevel))
+          (name, new RandomEffectModel(modelsRDD, randomEffectType, featureShardId))
         }
 
     } else {

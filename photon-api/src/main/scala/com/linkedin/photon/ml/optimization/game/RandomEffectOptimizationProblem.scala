@@ -21,9 +21,13 @@ import org.apache.spark.storage.StorageLevel
 import com.linkedin.photon.ml.Types.REId
 import com.linkedin.photon.ml.function.SingleNodeObjectiveFunction
 import com.linkedin.photon.ml.model.Coefficients
-import com.linkedin.photon.ml.optimization.SingleNodeOptimizationProblem
+import com.linkedin.photon.ml.normalization.NormalizationContext
+import com.linkedin.photon.ml.optimization.VarianceComputationType.VarianceComputationType
+import com.linkedin.photon.ml.optimization.{SingleNodeOptimizationProblem, VarianceComputationType}
+import com.linkedin.photon.ml.projector.LinearSubspaceProjector
 import com.linkedin.photon.ml.spark.RDDLike
 import com.linkedin.photon.ml.supervised.model.GeneralizedLinearModel
+import com.linkedin.photon.ml.util.PhotonNonBroadcast
 
 /**
  * Representation for a random effect optimization problem.
@@ -126,4 +130,64 @@ protected[ml] class RandomEffectOptimizationProblem[Objective <: SingleNodeObjec
         case (_, (optimizationProblem, model)) => optimizationProblem.getRegularizationTermValue(model)
       }
       .reduce(_ + _)
+}
+
+object RandomEffectOptimizationProblem {
+
+  /**
+   * Build a new [[RandomEffectOptimizationProblem]] to optimize.
+   *
+   * @tparam RandomEffectObjective The type of objective function used to solve individual random effect optimization
+   *                               problems
+   * @param linearSubspaceProjectorsRDD The per-entity [[LinearSubspaceProjector]] objects used to compress the
+   *                                    per-entity feature spaces
+   * @param configuration The optimization problem configuration
+   * @param objectiveFunctionConstructor
+   * @param glmConstructor The function to use for producing GLMs from trained coefficients
+   * @param normalizationContext The normalization context
+   * @param varianceComputationType If and how coefficient variances should be computed
+   * @param isTrackingState Should the optimization problem record the internal optimizer states?
+   * @return
+   */
+  protected[ml] def apply[RandomEffectObjective <: SingleNodeObjectiveFunction](
+      linearSubspaceProjectorsRDD: RDD[(REId, LinearSubspaceProjector)],
+      configuration: RandomEffectOptimizationConfiguration,
+      objectiveFunctionConstructor: () => RandomEffectObjective,
+      glmConstructor: Coefficients => GeneralizedLinearModel,
+      normalizationContext: NormalizationContext,
+      varianceComputationType: VarianceComputationType = VarianceComputationType.NONE,
+      isTrackingState: Boolean = false): RandomEffectOptimizationProblem[RandomEffectObjective] = {
+
+    val sc = linearSubspaceProjectorsRDD.sparkContext
+    val configurationBroadcast = sc.broadcast(configuration)
+    val objectiveFunctionBuilderBroadcast = sc.broadcast(objectiveFunctionConstructor)
+    val glmConstructorBroadcast = sc.broadcast(glmConstructor)
+    val normalizationContextBroadcast = sc.broadcast(normalizationContext)
+
+    // Generate new NormalizationContext and SingleNodeOptimizationProblem objects
+    val optimizationProblems = linearSubspaceProjectorsRDD
+      .mapValues { projector =>
+        val normContext = normalizationContextBroadcast.value
+        val factors = normContext.factorsOpt.map(factors => projector.projectForward(factors))
+        val shiftsAndIntercept = normContext
+          .shiftsAndInterceptOpt
+          .map { case (shifts, intercept) =>
+            val newShifts = projector.projectForward(shifts)
+            val newIntercept = projector.originalToProjectedSpaceMap(intercept)
+
+            (newShifts, newIntercept)
+          }
+        val projectedNormalizationContext = new NormalizationContext(factors, shiftsAndIntercept)
+
+        SingleNodeOptimizationProblem(
+          configurationBroadcast.value,
+          objectiveFunctionBuilderBroadcast.value(),
+          glmConstructorBroadcast.value,
+          PhotonNonBroadcast(projectedNormalizationContext),
+          varianceComputationType,
+          isTrackingState)
+      }
+
+    new RandomEffectOptimizationProblem(optimizationProblems, glmConstructor, isTrackingState)
+  }
 }

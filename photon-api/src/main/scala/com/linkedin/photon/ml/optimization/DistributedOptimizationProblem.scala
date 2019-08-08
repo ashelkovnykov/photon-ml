@@ -176,7 +176,7 @@ object DistributedOptimizationProblem {
    * Factory method to create new DistributedOptimizationProblems.
    *
    * @param configuration The optimization problem configuration
-   * @param objectiveFunction The objective function to optimize
+   * @param objectiveFunctionConstructor The objective function to optimize
    * @param samplerOption (Optional) A sampler to use for down-sampling the training data prior to optimization
    * @param glmConstructor The function to use for producing GLMs from trained coefficients
    * @param normalizationContext The normalization context
@@ -186,7 +186,7 @@ object DistributedOptimizationProblem {
    */
   def apply[Function <: DistributedObjectiveFunction](
       configuration: GLMOptimizationConfiguration,
-      objectiveFunction: Function,
+      objectiveFunctionConstructor: Function,
       samplerOption: Option[DownSampler],
       glmConstructor: Coefficients => GeneralizedLinearModel,
       normalizationContext: BroadcastWrapper[NormalizationContext],
@@ -204,7 +204,7 @@ object DistributedOptimizationProblem {
 
     new DistributedOptimizationProblem(
       optimizer,
-      objectiveFunction,
+      objectiveFunctionConstructor,
       samplerOption,
       glmConstructor,
       regularizationContext,

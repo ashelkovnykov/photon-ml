@@ -47,8 +47,7 @@ class GLMLossFunctionTest {
   @Test(dataProvider = "coordinateOptimizationProblemProvider")
   def testBuildFactory(coordinateOptConfig: CoordinateOptimizationConfiguration): Unit = {
 
-    val objectiveFunction =
-      GLMLossFunction.buildFactory(LOSS_FUNCTION, TREE_AGGREGATE_DEPTH)(coordinateOptConfig)
+    val objectiveFunction = GLMLossFunction.buildFactory(LOSS_FUNCTION, TREE_AGGREGATE_DEPTH)(coordinateOptConfig)()
 
     coordinateOptConfig match {
       case _: FixedEffectOptimizationConfiguration =>

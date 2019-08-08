@@ -196,14 +196,14 @@ object RandomEffectCoordinate {
   protected[ml] def apply[RandomEffectObjective <: SingleNodeObjectiveFunction](
       randomEffectDataset: RandomEffectDataset,
       configuration: RandomEffectOptimizationConfiguration,
-      objectiveFunction: RandomEffectObjective,
+      objectiveFunction: () => RandomEffectObjective,
       glmConstructor: Coefficients => GeneralizedLinearModel,
       normalizationContext: NormalizationContext,
       varianceComputationType: VarianceComputationType = VarianceComputationType.NONE,
       isTrackingState: Boolean = false): RandomEffectCoordinate[RandomEffectObjective] = {
 
     // Generate parameters of ProjectedRandomEffectCoordinate
-    val randomEffectOptimizationProblem = buildRandomEffectOptimizationProblem(
+    val randomEffectOptimizationProblem = RandomEffectOptimizationProblem(
       randomEffectDataset.projectors,
       configuration,
       objectiveFunction,
@@ -213,57 +213,6 @@ object RandomEffectCoordinate {
       isTrackingState)
 
     new RandomEffectCoordinate(randomEffectDataset, randomEffectOptimizationProblem)
-  }
-
-  /**
-   * Build a new [[RandomEffectOptimizationProblem]] for a [[RandomEffectCoordinate]] to optimize.
-   *
-   * @tparam RandomEffectObjective The type of objective function used to solve individual random effect optimization
-   *                               problems
-   * @param linearSubspaceProjectorsRDD The per-entity [[LinearSubspaceProjector]] objects used to compress the
-   *                                    per-entity feature spaces
-   * @param configuration The optimization problem configuration
-   * @param objectiveFunction The objective function to optimize
-   * @param glmConstructor The function to use for producing GLMs from trained coefficients
-   * @param normalizationContext The normalization context
-   * @param varianceComputationType If and how coefficient variances should be computed
-   * @param isTrackingState Should the optimization problem record the internal optimizer states?
-   * @return
-   */
-  private def buildRandomEffectOptimizationProblem[RandomEffectObjective <: SingleNodeObjectiveFunction](
-      linearSubspaceProjectorsRDD: RDD[(REId, LinearSubspaceProjector)],
-      configuration: RandomEffectOptimizationConfiguration,
-      objectiveFunction: RandomEffectObjective,
-      glmConstructor: Coefficients => GeneralizedLinearModel,
-      normalizationContext: NormalizationContext,
-      varianceComputationType: VarianceComputationType = VarianceComputationType.NONE,
-      isTrackingState: Boolean = false): RandomEffectOptimizationProblem[RandomEffectObjective] = {
-
-    // Generate new NormalizationContext and SingleNodeOptimizationProblem objects
-    val optimizationProblems = linearSubspaceProjectorsRDD
-      .mapValues { projector =>
-        val factors = normalizationContext.factorsOpt.map(factors => projector.projectForward(factors))
-        val shiftsAndIntercept = normalizationContext
-          .shiftsAndInterceptOpt
-          .map { case (shifts, intercept) =>
-            val newShifts = projector.projectForward(shifts)
-            val newIntercept = projector.originalToProjectedSpaceMap(intercept)
-
-            (newShifts, newIntercept)
-          }
-        val projectedNormalizationContext = new NormalizationContext(factors, shiftsAndIntercept)
-
-        // TODO: Broadcast arguments to SingleNodeOptimizationProblem?
-        SingleNodeOptimizationProblem(
-          configuration,
-          objectiveFunction,
-          glmConstructor,
-          PhotonNonBroadcast(projectedNormalizationContext),
-          varianceComputationType,
-          isTrackingState)
-      }
-
-    new RandomEffectOptimizationProblem(optimizationProblems, glmConstructor, isTrackingState)
   }
 
   /**

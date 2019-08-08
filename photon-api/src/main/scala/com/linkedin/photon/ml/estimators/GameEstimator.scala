@@ -632,7 +632,7 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
     val updateSequence = getRequiredParam(coordinateUpdateSequence)
     val normalizationContexts = get(coordinateNormalizationContexts).getOrElse(Map())
     val variance = getOrDefault(varianceComputationType)
-    val lossFunctionFactory = ObjectiveFunctionHelper.buildFactory(task, getOrDefault(treeAggregateDepth))
+    val lossFunctionFactoryFactory = ObjectiveFunctionHelper.buildFactory(task, getOrDefault(treeAggregateDepth))
     val glmConstructor = task match {
       case TaskType.LOGISTIC_REGRESSION => LogisticRegressionModel.apply _
       case TaskType.LINEAR_REGRESSION => LinearRegressionModel.apply _
@@ -657,7 +657,7 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
             CoordinateFactory.build(
               trainingDatasets(coordinateId),
               configuration(coordinateId),
-              lossFunctionFactory,
+              lossFunctionFactoryFactory,
               glmConstructor,
               downSamplerFactory,
               normalizationContexts.getOrElse(coordinateId, NoNormalization()),

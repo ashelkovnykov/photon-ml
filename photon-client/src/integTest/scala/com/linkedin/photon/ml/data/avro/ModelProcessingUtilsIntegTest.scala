@@ -79,7 +79,6 @@ class ModelProcessingUtilsIntegTest extends SparkTestUtils with TestTemplateWith
     // Check that the model loaded correctly and that it is identical to the model saved
     assertTrue(gameModel == loadedGameModel)
   }
-  import ModelProcessingUtilsIntegTest._
 
   /**
    * Test that we can load a subset of the GAME model coordinates.
@@ -366,7 +365,11 @@ class ModelProcessingUtilsIntegTest extends SparkTestUtils with TestTemplateWith
     val outputDir = new Path(getTmpDir)
 
     // Save model metadata
-    ModelProcessingUtils.saveGameModelMetadataToHDFS(sc, outputDir, TASK_TYPE, GAME_OPTIMIZATION_CONFIGURATION)
+    ModelProcessingUtils.saveGameModelMetadata(
+      sc.hadoopConfiguration,
+      outputDir,
+      TASK_TYPE,
+      GAME_OPTIMIZATION_CONFIGURATION)
 
     // TODO: This test is incomplete - need to check that all parameters are loaded correctly.
     assertEquals(

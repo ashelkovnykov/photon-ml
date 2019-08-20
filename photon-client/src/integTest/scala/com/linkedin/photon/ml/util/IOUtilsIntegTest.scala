@@ -14,10 +14,6 @@
  */
 package com.linkedin.photon.ml.util
 
-import java.io.File
-
-import scala.io.Source
-
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.joda.time.{DateTime, DateTimeUtils}
 import org.testng.Assert._
@@ -144,40 +140,65 @@ class IOUtilsIntegTest extends SparkTestUtils with TestTemplateWithTmpDir {
    * Test writing to an HDFS file once.
    */
   @Test
-  def testToHDFSFileOnce(): Unit = sparkTest("testToHDFSFileOnce") {
+  def testWriteFileOnce(): Unit = sparkTest("testWriteFileOnce") {
 
-    val fs = FileSystem.get(sc.hadoopConfiguration)
+    val configuration = sc.hadoopConfiguration
+    val fs = FileSystem.get(configuration)
+    val filePath = new Path(getTmpDir, "wfo")
+    val msg = "text"
 
-    val res = IOUtils.toHDFSFile(sc, "/tmp/test4")
-    { writer => (1 to 3).foreach { i => writer.println(s"$i ") } }
+    val res = IOUtils.writeToFile(configuration, filePath, Seq(msg))
+    assertTrue(res.isSuccess)
+    assertTrue(fs.exists(filePath))
+    assertFalse(fs.exists(filePath.suffix(IOUtils.TMP_SUFFIX)))
+    assertFalse(fs.exists(filePath.suffix(IOUtils.BACKUP_SUFFIX)))
 
-    assert(res.isSuccess)
-    assert(Source.fromFile("/tmp/test4").getLines.mkString == "1 2 3 ")
-    assert(!fs.exists(new Path("/tmp/test4.prev")))
-    assert(!fs.exists(new Path("/tmp/test4-tmp")))
+    val fileText = IOUtils.readStringsFromHDFS(filePath, configuration)
+    assertEquals(fileText.length, 1)
+    assertEquals(fileText.head, msg)
 
-    new File("/tmp/test4").delete
-    new File("/tmp/test4.prev").delete
+    fs.delete(filePath, true)
   }
 
   /**
    * Test writing to an HDFS file repeatedly.
    */
-  @Test
-  def testToHDFSFileRepeated(): Unit = sparkTest("testToHDFSFileRepeated") {
+  @Test(dependsOnMethods = Array("testWriteFileOnce"))
+  def testWriteFileRepeated(): Unit = sparkTest("testWriteFileRepeated") {
 
-    val fs = FileSystem.get(sc.hadoopConfiguration)
+    val configuration = sc.hadoopConfiguration
+    val fs = FileSystem.get(configuration)
+    val filePath = new Path(getTmpDir, "wfr")
+    val tmpFilePath = filePath.suffix(IOUtils.TMP_SUFFIX)
+    val backupFilePath = filePath.suffix(IOUtils.BACKUP_SUFFIX)
+    val msg1 = "text1"
+    val msg2 = "text2"
 
-    for (n <- 1 to 3) {
-      val res = IOUtils.toHDFSFile(sc, "/tmp/test5") { writer => (1 to 3).foreach(i => writer.println(s"${n + i} ")) }
-      assert(res.isSuccess)
-    }
+    val res1 = IOUtils.writeToFile(configuration, filePath, Seq(msg1))
+    assertTrue(res1.isSuccess)
+    assertTrue(fs.exists(filePath))
+    assertFalse(fs.exists(tmpFilePath))
+    assertFalse(fs.exists(backupFilePath))
 
-    assert(Source.fromFile("/tmp/test5").getLines.mkString == "4 5 6 ")
-    assert(Source.fromFile("/tmp/test5.prev").getLines.mkString == "3 4 5 ")
-    assert(!fs.exists(new Path("/tmp/test5-tmp")))
+    val file1Text = IOUtils.readStringsFromHDFS(filePath, configuration)
+    assertEquals(file1Text.length, 1)
+    assertEquals(file1Text.head, msg1)
 
-    new File("/tmp/test5").delete
-    new File("/tmp/test5.prev").delete
+    val res2 = IOUtils.writeToFile(configuration, filePath, Seq(msg2))
+    assertTrue(res2.isSuccess)
+    assertTrue(fs.exists(filePath))
+    assertFalse(fs.exists(tmpFilePath))
+    assertTrue(fs.exists(backupFilePath))
+
+    val file2Text = IOUtils.readStringsFromHDFS(filePath, configuration)
+    assertEquals(file2Text.length, 1)
+    assertEquals(file2Text.head, msg2)
+
+    val backupText = IOUtils.readStringsFromHDFS(backupFilePath, configuration)
+    assertEquals(backupText.length, 1)
+    assertEquals(backupText.head, msg1)
+
+    fs.delete(filePath, true)
+    fs.delete(backupFilePath, true)
   }
 }

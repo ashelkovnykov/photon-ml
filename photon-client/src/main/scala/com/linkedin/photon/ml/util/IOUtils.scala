@@ -35,6 +35,11 @@ import com.linkedin.photon.ml.supervised.model.GeneralizedLinearModel
  */
 object IOUtils {
 
+  protected[util] val TMP_SUFFIX = "-tmp"
+  protected[util] val BACKUP_SUFFIX = ".prev"
+
+  private val CHARSET = "UTF-8"
+
   /**
    * Resolve between multiple date range specification options.
    *
@@ -286,54 +291,40 @@ object IOUtils {
   }
 
   /**
-   * Write to a stream while handling exceptions, and closing the stream correctly whether writing to it
-   * succeeded or not.
+   * Write a file to disk. If a file of the same name exists, create a backup of the file. If a required step fails,
+   * do not attempt following steps - instead propagate the Exception. Guarantee that open [[OutputStream]] and
+   * [[PrintWriter]] objects are closed.
    *
-   * @note remember that a Try instance can be understood as a collection, that can have zero
-   * or one element. This code uses a "monadic flow" started by the Try. Try can be a Success or a Failure.
-   * Success.map(lambda) applies lambda to the value wrapped in the Success instance, and returns the result,
-   * which can itself be either Success or Failure, wrapping an instance of the type returned by the lambda.
-   * Failure.map(lambda) ignores lambda, and returns itself, but changing the contained type to the type
-   * returned by the lambda (see scala.util.Try). Failure thus contains an exception, if one is thrown.
-   *
-   * @param outputStreamGenerator A lambda that generates an output stream
-   * @param op A lambda that writes to the stream
-   * @return Success or Failure. In case of Failure, the Failure contains the exception triggered
+   * @param configuration Configuration parameters access object
+   * @param filePath Path to new file
+   * @param msgs Data to write to file, as sequence of String objects
+   * @return If error then a Failure object wrapping the first exception triggered, otherwise Success
    */
-  def toStream(outputStreamGenerator: => OutputStream)(op: PrintWriter => Unit): Try[Unit] = {
+  def writeToFile(
+      configuration: Configuration,
+      filePath: Path,
+      msgs: Iterable[String],
+      forceOverwrite: Boolean = true): Try[Unit] = {
 
-    val os = Try(outputStreamGenerator)
-    val writer = os.map(stream => new PrintWriter(stream))
+    val fs = filePath.getFileSystem(configuration)
+    val fc = FileContext.getFileContext(configuration)
+    val tmpFile = filePath.suffix(TMP_SUFFIX)
+    val bkpFile = filePath.suffix(BACKUP_SUFFIX)
 
-    val write = writer.map(op(_))
-    val flush = writer.map(_.flush)
-    val close = os.map(_.close)
+    val outputStream = fs.create(tmpFile, forceOverwrite)
+    val writer = new PrintWriter(new BufferedWriter(new OutputStreamWriter(outputStream, CHARSET)))
 
-    write.flatMap(_ => flush).flatMap(_ => close)
-  }
+    val result = Try {
+      msgs.foreach(message => writer.println(message))
+      writer.flush()
+    }
 
-  /**
-   * Backup and update a file on HDFS.
-   *
-   * A temporary file is written to, using the writeOp lambda. Then the old file is atomically backed up
-   * to a file with the same name and suffix ".prev". Finally, the newly written file is atomically
-   * renamed. If any operation in the process fails, the remaining operations are not executed, and an
-   * exception is propagated instead.
-   *
-   * @param sc The Spark context
-   * @param fileName The name of the file to backup and update
-   * @param writeOp A lambda that writes to the file
-   * @return Success or Failure. In case of Failure, the Failure contains the exceptions triggered
-   */
-  def toHDFSFile(sc: SparkContext, fileName: String)(writeOp: PrintWriter => Unit): Try[Unit] = {
+    writer.close()
+    outputStream.close()
 
-    val cf = sc.hadoopConfiguration
-    val (fs, fc) = (org.apache.hadoop.fs.FileSystem.get(cf), FileContext.getFileContext(cf))
-    val (file, tmpFile, bkpFile) = (new Path(fileName), new Path(fileName + "-tmp"), new Path(fileName + ".prev"))
+    Try(fc.rename(filePath, bkpFile, Options.Rename.OVERWRITE))
 
-    toStream(fs.create(tmpFile))(writeOp)
-      .map(_ => if (fs.exists(file)) fc.rename(file, bkpFile, Options.Rename.OVERWRITE))
-      .map(_ => fc.rename(tmpFile, file, Options.Rename.OVERWRITE))
+    result.map(_ => fc.rename(tmpFile, filePath, Options.Rename.OVERWRITE))
   }
 
   /**

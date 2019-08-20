@@ -14,11 +14,13 @@
  */
 package com.linkedin.photon.ml.data.avro
 
+import java.io.IOException
 import java.lang.{Double => JDouble}
 import java.util.{Map => JMap}
 
 import scala.collection.JavaConversions._
 import scala.io.Source
+import scala.util.Failure
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
@@ -86,8 +88,6 @@ object ModelProcessingUtils {
 
     val hadoopConfiguration = sc.hadoopConfiguration
 
-    saveGameModelMetadataToHDFS(sc, outputDir, optimizationTask, optimizationConfigurations)
-
     gameModel.toMap.foreach { case (name, model) =>
       model match {
         case fixedEffectModel: FixedEffectModel =>
@@ -127,6 +127,8 @@ object ModelProcessingUtils {
             sparsityThreshold)
       }
     }
+
+    saveGameModelMetadata(hadoopConfiguration, outputDir, optimizationTask, optimizationConfigurations)
   }
 
   /**
@@ -480,29 +482,29 @@ object ModelProcessingUtils {
   /**
    * Save model metadata to a JSON file.
    *
-   * @param sc The Spark context
-   * @param outputDir The HDFS directory that will contain the metadata file
+   * @param configuration Configuration parameters access object
+   * @param metadataDir Metadata file parent dir
    * @param optimizationTask The type of optimization used to train the model
    * @param optimizationConfiguration The optimization configuration for the model
-   * @param metadataFilename Output file name
    */
-  def saveGameModelMetadataToHDFS(
-      sc: SparkContext,
-      outputDir: Path,
+  def saveGameModelMetadata(
+      configuration: Configuration,
+      metadataDir: Path,
       optimizationTask: TaskType,
-      optimizationConfiguration: GameEstimator.GameOptimizationConfiguration,
-      metadataFilename: String = "model-metadata.json"): Unit = {
+      optimizationConfiguration: GameEstimator.GameOptimizationConfiguration): Unit = {
 
+    val metadataPath = new Path(metadataDir, METADATA_FILE)
     val optConfigurations = gameOptConfigToJson(optimizationConfiguration)
+    val metadata = s"""
+      |{
+      |  "$MODEL_TYPE": "$optimizationTask",
+      |  "optimizationConfigurations": $optConfigurations
+      |}"""
+      .stripMargin
 
-    IOUtils.toHDFSFile(sc, outputDir + "/" + metadataFilename) {
-      writer => writer.println(
-        s"""
-           |{
-           |  "$MODEL_TYPE": "$optimizationTask",
-           |  "optimizationConfigurations": $optConfigurations
-           |}
-         """.stripMargin)
+    IOUtils.writeToFile(configuration, metadataPath, Seq(metadata)) match {
+      case Failure(f) => throw new IOException(s"Error writing model metadata: $f")
+      case _ =>
     }
   }
 

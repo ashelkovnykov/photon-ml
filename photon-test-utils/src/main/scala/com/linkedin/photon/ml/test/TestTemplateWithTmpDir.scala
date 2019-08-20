@@ -22,10 +22,11 @@ import org.apache.commons.io.FileUtils
  * Thread safe test template to provide a temporary directory per method.
  */
 trait TestTemplateWithTmpDir {
+
   /**
-   * Return the temporary directory as a string.
+   * Return a temporary directory path as a String.
    *
-   * @return The temporary directory as a string
+   * @return Path to temporary directory
    */
   def getTmpDir: String = {
     TestTemplateWithTmpDir.tmpDirThreadLocal.get()
@@ -38,13 +39,16 @@ private object TestTemplateWithTmpDir {
    *
    * @return
    */
-  private def tmpDirThreadLocal: ThreadLocal[String] = new ThreadLocal[String] {
-    protected override def initialValue(): String = {
-      val parentDir = Paths.get(FileUtils.getTempDirectoryPath)
-      val prefix = Thread.currentThread().getId + "-" + System.nanoTime()
-      val dir = Files.createTempDirectory(parentDir, prefix).toFile
-      dir.deleteOnExit()
-      dir.toString
+  private def tmpDirThreadLocal: ThreadLocal[String] =
+    new ThreadLocal[String] {
+
+      protected override def initialValue(): String = {
+
+        val parentDir = Paths.get(FileUtils.getTempDirectoryPath)
+        val prefix = Thread.currentThread().getId + "-" + System.nanoTime()
+        val dir = Files.createTempDirectory(parentDir, prefix).toFile
+        dir.deleteOnExit()
+        dir.toString
+      }
     }
-  }
 }

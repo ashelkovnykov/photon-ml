@@ -14,10 +14,9 @@
  */
 package com.linkedin.photon.ml.util
 
-import java.io.{File, FileOutputStream}
+import java.io.File
 
 import scala.collection.mutable.ArrayBuffer
-import scala.io.Source
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
@@ -58,48 +57,5 @@ class IOUtilsTest extends TestTemplateWithTmpDir {
     Assert.assertEquals(strings, ArrayBuffer(testString))
 
     new File("/tmp/test1").delete
-  }
-
-  /**
-   * Test that writing to stream is handled correctly when no exceptions occur.
-   */
-  @Test
-  def testWriteToStreamSuccess(): Unit = {
-
-    val res = IOUtils.toStream(new FileOutputStream(new File("/tmp/test1"))) { writer =>
-      (1 to 3).foreach(i => writer.println(s"$i "))
-    }
-
-    assert(res.isSuccess)
-    assert(Source.fromFile("/tmp/test1").getLines.mkString == "1 2 3 ")
-
-    new File("/tmp/test1").delete
-  }
-
-  /**
-   * Test that writing to stream is handled correctly when an exception occurs during the opening of the stream.
-   */
-  @Test
-  def testWriteToStreamFailureInOpen(): Unit = {
-
-    val res = IOUtils.toStream(throw new RuntimeException("exception in open")) { writer =>
-      (1 to 3).foreach(i => writer.println(s"$i "))
-    }
-
-    assert(res.isFailure)
-  }
-
-  /**
-   * Test that writing to stream is handled correctly when an exception occurs during writing.
-   */
-  @Test
-  def testWriteToStreamFailureInWrite(): Unit = {
-
-    val res = IOUtils
-      .toStream(new FileOutputStream(new File("/tmp/test2")))(_ => throw new RuntimeException("exception in write"))
-
-    assert(res.isFailure)
-
-    new File("/tmp/test2").delete
   }
 }

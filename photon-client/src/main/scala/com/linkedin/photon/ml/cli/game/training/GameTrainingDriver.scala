@@ -68,7 +68,6 @@ object GameTrainingDriver extends GameDriver {
   private val DEFAULT_APPLICATION_NAME = "GAME-Training"
 
   protected[training] val MODELS_DIR = "models"
-  protected[training] val MODEL_SPEC_DIR = "model-spec"
   protected[training] val BEST_MODEL_DIR = "best"
 
   protected[training] var sc: SparkContext = _
@@ -749,8 +748,6 @@ object GameTrainingDriver extends GameDriver {
   /**
    * Write the GAME models to HDFS.
    *
-   * TODO: Deprecate model-spec then remove it in favor of model-metadata, but there are clients!
-   *
    * @param featureShardIdToFeatureMapLoader The shard ids
    * @param models All the models that were producing during training
    * @param bestModel The best model
@@ -773,14 +770,8 @@ object GameTrainingDriver extends GameDriver {
         case Some((model, modelConfig, _)) =>
 
           val modelOutputDir = new Path(rootOutputDir, BEST_MODEL_DIR)
-          val modelSpecDir = new Path(modelOutputDir, MODEL_SPEC_DIR)
 
           Utils.createHDFSDir(modelOutputDir, hadoopConfiguration)
-          IOUtils.writeOptimizationConfigToHDFS(
-            modelConfig,
-            modelSpecDir,
-            hadoopConfiguration,
-            forceOverwrite = false)
           ModelProcessingUtils.saveGameModelToHDFS(
             sc,
             modelOutputDir,
@@ -802,14 +793,8 @@ object GameTrainingDriver extends GameDriver {
         case (modelIndex, (model, modelConfig, _)) =>
 
           val modelOutputDir = new Path(allOutputDir, modelIndex.toString)
-          val modelSpecDir = new Path(modelOutputDir, MODEL_SPEC_DIR)
 
           Utils.createHDFSDir(modelOutputDir, hadoopConfiguration)
-          IOUtils.writeOptimizationConfigToHDFS(
-            modelConfig,
-            modelSpecDir,
-            hadoopConfiguration,
-            forceOverwrite = false)
           ModelProcessingUtils.saveGameModelToHDFS(
             sc,
             modelOutputDir,

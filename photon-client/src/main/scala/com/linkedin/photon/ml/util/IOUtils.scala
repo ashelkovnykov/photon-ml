@@ -190,25 +190,6 @@ object IOUtils {
   }
 
   /**
-   * Write an [[GameEstimator.GameOptimizationConfiguration]] to HDFS.
-   *
-   * @param optimizationConfig The GAME model optimization configuration to write to HDFS
-   * @param outputPath The output HDFS directory to which to write
-   * @param configuration The HDFS configuration
-   * @param forceOverwrite Whether to force overwrite the output path if already exists
-   */
-  def writeOptimizationConfigToHDFS(
-      optimizationConfig: GameEstimator.GameOptimizationConfiguration,
-      outputPath: Path,
-      configuration: Configuration,
-      forceOverwrite: Boolean): Unit =
-    writeStringsToHDFS(
-      Iterator(optimizationConfigToString(optimizationConfig)),
-      outputPath,
-      configuration,
-      forceOverwrite)
-
-  /**
    * Write an iterator of strings to HDFS
    *
    * @param stringMsgs The strings to be written to HDFS

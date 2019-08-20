@@ -14,9 +14,7 @@
  */
 package com.linkedin.photon.ml.optimization
 
-import scala.collection.immutable.Queue
-
-import breeze.linalg.norm
+import scala.collection.mutable
 
 import com.linkedin.photon.ml.util.{ConvergenceReason, Summarizable}
 
@@ -28,29 +26,33 @@ import com.linkedin.photon.ml.util.{ConvergenceReason, Summarizable}
  * @note  DO NOT USE this class outside of Photon-ML. It is intended as an internal utility, and is likely to be
  *        changed or removed in future releases.
  */
-protected[ml] class OptimizationStatesTracker(maxNumStates: Int = 100) extends Serializable with Summarizable {
+protected[ml] class OptimizationStatesTracker(private val startTime: Long, maxNumStates: Int = 100)
+  extends Serializable
+    with Summarizable {
 
   import OptimizationStatesTracker._
 
-  private val _startTime = System.currentTimeMillis()
+  private val states = mutable.Queue[OptimizerState]()
+  private val times = mutable.Queue[Long]()
 
-  private var _times = Queue[Long]()
-  private var _states = Queue[OptimizerState]()
-  private var _convergenceReason: Option[ConvergenceReason] = None
+  private var convergeReason: Option[ConvergenceReason] = None
 
-  /**
-   * Getter method for [[_convergenceReason]].
-   *
-   * @return Value of [[_convergenceReason]]
-   */
-  def convergenceReason: Option[ConvergenceReason] = _convergenceReason
+  states.sizeHint(maxNumStates)
+  times.sizeHint(maxNumStates)
 
   /**
-   * Setter method for [[_convergenceReason]].
+   * Getter method for [[convergeReason]].
    *
-   * @param value New value of [[_convergenceReason]]
+   * @return Value of [[convergeReason]]
    */
-  def convergenceReason_=(value: Option[ConvergenceReason]): Unit = _convergenceReason = value
+  def convergenceReason: Option[ConvergenceReason] = convergeReason
+
+  /**
+   * Setter method for [[convergeReason]].
+   *
+   * @param value New value of [[convergeReason]]
+   */
+  protected[optimization] def convergenceReason_=(value: Option[ConvergenceReason]): Unit = convergeReason = value
 
   /**
    * Add the most recent state to the list of tracked states. If the limit of cached states is reached, remove the
@@ -58,30 +60,30 @@ protected[ml] class OptimizationStatesTracker(maxNumStates: Int = 100) extends S
    *
    * @param state The most recent state
    */
-  def track(state: OptimizerState): Unit = {
+  def append(state: OptimizerState): Unit = {
 
-    _times = _times.enqueue(System.currentTimeMillis() - _startTime)
-    _states = _states.enqueue(state)
+    states.enqueue(state)
+    times.enqueue(System.currentTimeMillis() - startTime)
 
-    while (_times.length > maxNumStates) {
-      _times = _times.dequeue._2
-      _states = _states.dequeue._2
+    while (times.length > maxNumStates) {
+      states.dequeue
+      times.dequeue
     }
   }
-
-  /**
-   * Get the sequence of times between states as an Array.
-   *
-   * @return The times between states
-   */
-  def getTrackedTimeHistory: Array[Long] = _times.toArray
 
   /**
    * Get the sequence of recorded states as an Array.
    *
    * @return The recorded states
    */
-  def getTrackedStates: Array[OptimizerState] = _states.toArray
+  def trackedStates: Array[OptimizerState] = states.toArray
+
+  /**
+   * Get the sequence of times between states as an Array.
+   *
+   * @return The times between states
+   */
+  def trackedStateTimes: Array[Long] = times.toArray
 
   /**
    *
@@ -91,21 +93,18 @@ protected[ml] class OptimizationStatesTracker(maxNumStates: Int = 100) extends S
 
     val stringBuilder = new StringBuilder
 
-    val convergenceReasonStr = convergenceReason match {
-      case Some(reason) => reason.reason
-      case None => "Optimizer is not converged properly, please check the log for more information"
+    val convergenceReasonStr = convergeReason match {
+      case Some(reason) => reason.summary
+      case None => "Optimizer has not converged properly, please check the log for more information"
     }
-    val timeElapsed = getTrackedTimeHistory
-    val states = getTrackedStates
+    val statesIterator = states.iterator
+    val timesIterator = times.iterator
 
     stringBuilder ++= s"Convergence reason: $convergenceReasonStr\n"
-    stringBuilder ++= f"$ITERATIONS%10s$TIME%10s$VALUE%25s$GRADIENT_NORM%15s\n"
-    stringBuilder ++= states
-      .zip(timeElapsed)
-      .map { case (OptimizerState(_, value, gradient, iter), time) =>
-        f"$iter%10d${time * 0.001}%10.3f$value%25.8f${norm(gradient, 2)}%15.2e"
-      }
-      .mkString("\n")
+    stringBuilder ++= f"$TIME%10s" ++= states.head.summaryAxis ++= "\n"
+    while (statesIterator.hasNext) {
+      stringBuilder ++= f"${timesIterator.next() * 0.001}%10.3f" ++= statesIterator.next().toSummaryString ++= "\n"
+    }
     stringBuilder ++= "\n"
 
     stringBuilder.result()
@@ -114,8 +113,5 @@ protected[ml] class OptimizationStatesTracker(maxNumStates: Int = 100) extends S
 
 object OptimizationStatesTracker {
 
-  val ITERATIONS = "Iter"
-  val TIME = "Time(s)"
-  val VALUE = "Value"
-  val GRADIENT_NORM = "|Gradient|"
+  val TIME = "Time (s)"
 }

@@ -14,7 +14,7 @@
  */
 package com.linkedin.photon.ml.optimization
 
-import com.linkedin.photon.ml.function.TwiceDiffFunction
+import com.linkedin.photon.ml.function.{DiffFunction, ObjectiveFunction, TwiceDiffFunction}
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.util.BroadcastWrapper
 
@@ -24,43 +24,112 @@ import com.linkedin.photon.ml.util.BroadcastWrapper
  * optimizers: mixing incompatible optimizers and objective functions will result in a runtime error.
  */
 protected[ml] object OptimizerFactory {
+
   /**
    * Creates an optimizer.
    *
+   * @tparam T
    * @param config The Optimizer configuration
+   * @param objectiveFunction
    * @param normalizationContext The normalization context
    * @param regularizationContext The regularization context
    * @param regularizationWeight The regularization weight
    * @return A new [[Optimizer]]
    */
-  def build(
+  def build[T <: ObjectiveFunction](
       config: OptimizerConfig,
+      objectiveFunction: T,
       normalizationContext: BroadcastWrapper[NormalizationContext],
       regularizationContext: RegularizationContext,
-      regularizationWeight: Double = 0): Optimizer[TwiceDiffFunction] =
+      regularizationWeight: Double = 0): Optimizer[T] =
+
+    objectiveFunction match {
+      case _: TwiceDiffFunction =>
+        buildTwiceDiffFunction(
+          config,
+          objectiveFunction.asInstanceOf[T with TwiceDiffFunction],
+          normalizationContext,
+          regularizationContext,
+          regularizationWeight)
+
+      case _: DiffFunction =>
+        buildDiffFunction(
+          config,
+          objectiveFunction.asInstanceOf[T with DiffFunction],
+          normalizationContext,
+          regularizationContext,
+          regularizationWeight)
+
+      case _ =>
+        throw new IllegalArgumentException(
+          s"OptimizerFactory cannot build Optimizer of with type ${objectiveFunction.getClass}")
+    }
+
+  private def buildDiffFunction[T <: DiffFunction](
+      config: OptimizerConfig,
+      diffFunction: T,
+      normalizationContext: BroadcastWrapper[NormalizationContext],
+      regularizationContext: RegularizationContext,
+      regularizationWeight: Double = 0): Optimizer[T] = {
 
     (config.optimizerType, regularizationContext.regularizationType) match {
       case (OptimizerType.LBFGS, RegularizationType.L1 | RegularizationType.ELASTIC_NET) =>
-        new OWLQN(
-          l1RegWeight = regularizationContext.getL1RegularizationWeight(regularizationWeight),
-          normalizationContext = normalizationContext,
-          tolerance = config.tolerance,
-          maxNumIterations = config.maximumIterations,
-          constraintMap = config.constraintMap)
+        new OWLQN[T](
+          diffFunction,
+          config.tolerance,
+          config.maximumIterations,
+          normalizationContext,
+          regularizationContext.getL1RegularizationWeight(regularizationWeight),
+          constraintMapOpt = config.constraintMap)
 
       case (OptimizerType.LBFGS, RegularizationType.L2 | RegularizationType.NONE) =>
         new LBFGS(
-          normalizationContext = normalizationContext,
-          tolerance = config.tolerance,
-          maxNumIterations = config.maximumIterations,
-          constraintMap = config.constraintMap)
+          diffFunction,
+          config.tolerance,
+          config.maximumIterations,
+          normalizationContext,
+          constraintMapOpt = config.constraintMap)
+
+      case (OptimizerType.LBFGS, regType) =>
+        throw new IllegalArgumentException(s"Incompatible regularization selected: $regType")
+
+      case (optType, _) =>
+        throw new IllegalArgumentException(s"Incompatible optimizer selected: $optType")
+    }
+  }
+
+  private def buildTwiceDiffFunction[T <: TwiceDiffFunction](
+    config: OptimizerConfig,
+    twiceDiffFunction: T,
+    normalizationContext: BroadcastWrapper[NormalizationContext],
+    regularizationContext: RegularizationContext,
+    regularizationWeight: Double = 0): Optimizer[T] =
+
+    (config.optimizerType, regularizationContext.regularizationType) match {
+      case (OptimizerType.LBFGS, RegularizationType.L1 | RegularizationType.ELASTIC_NET) =>
+        new OWLQN[T](
+          twiceDiffFunction,
+          config.tolerance,
+          config.maximumIterations,
+          normalizationContext,
+          regularizationContext.getL1RegularizationWeight(regularizationWeight),
+          constraintMapOpt = config.constraintMap)
+
+      case (OptimizerType.LBFGS, RegularizationType.L2 | RegularizationType.NONE) =>
+        new LBFGS(
+          twiceDiffFunction,
+          config.tolerance,
+          config.maximumIterations,
+          normalizationContext,
+          constraintMapOpt = config.constraintMap)
 
       case (OptimizerType.TRON, RegularizationType.L2 | RegularizationType.NONE) =>
         new TRON(
-          normalizationContext = normalizationContext,
-          tolerance = config.tolerance,
-          maxNumIterations = config.maximumIterations,
-          constraintMap = config.constraintMap)
+          twiceDiffFunction,
+          config.tolerance,
+          config.maximumIterations,
+          normalizationContext,
+          constraintMapOpt = config.constraintMap)
 
       case (OptimizerType.TRON, RegularizationType.L1 | RegularizationType.ELASTIC_NET) =>
         throw new IllegalArgumentException("TRON optimizer incompatible with L1 regularization")

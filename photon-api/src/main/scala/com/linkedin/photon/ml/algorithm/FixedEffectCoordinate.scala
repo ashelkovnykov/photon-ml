@@ -50,17 +50,12 @@ protected[ml] class FixedEffectCoordinate[Objective <: DistributedObjectiveFunct
    *
    * @return A (updated model, optimization state tracking information) tuple
    */
-  override protected[algorithm] def trainModel(): (DatumScoringModel, OptimizationTracker) = {
-
-    val updatedFixedEffectModel = FixedEffectCoordinate.trainModel(
+  override protected[algorithm] def trainModel(): (DatumScoringModel, OptimizationTracker) =
+    FixedEffectCoordinate.trainModel(
       dataset.labeledPoints,
       optimizationProblem,
       dataset.featureShardId,
       None)
-    val optimizationTracker = new FixedEffectOptimizationTracker(optimizationProblem.getStatesTracker)
-
-    (updatedFixedEffectModel, optimizationTracker)
-  }
 
   /**
    * Compute an optimized model (i.e. run the coordinate optimizer) for the current dataset using an existing model as
@@ -72,14 +67,11 @@ protected[ml] class FixedEffectCoordinate[Objective <: DistributedObjectiveFunct
   override protected[algorithm] def trainModel(model: DatumScoringModel): (DatumScoringModel, OptimizationTracker) =
     model match {
       case fixedEffectModel: FixedEffectModel =>
-        val updatedFixedEffectModel = FixedEffectCoordinate.trainModel(
+        FixedEffectCoordinate.trainModel(
           dataset.labeledPoints,
           optimizationProblem,
           dataset.featureShardId,
           Some(fixedEffectModel))
-        val optimizationTracker = new FixedEffectOptimizationTracker(optimizationProblem.getStatesTracker)
-
-        (updatedFixedEffectModel, optimizationTracker)
 
       case _ =>
         throw new UnsupportedOperationException(
@@ -119,16 +111,18 @@ object FixedEffectCoordinate {
       input: RDD[(UniqueSampleId, LabeledPoint)],
       optimizationProblem: DistributedOptimizationProblem[Function],
       featureShardId: FeatureShardId,
-      initialFixedEffectModelOpt: Option[FixedEffectModel]): FixedEffectModel = {
+      initialFixedEffectModelOpt: Option[FixedEffectModel]): (FixedEffectModel, FixedEffectOptimizationTracker) = {
 
-    val newModel = initialFixedEffectModelOpt
+    val (newModel, optimizationTracker) = initialFixedEffectModelOpt
       .map { initialFixedEffectModel =>
         optimizationProblem.runWithSampling(input, initialFixedEffectModel.model)
       }
       .getOrElse(optimizationProblem.runWithSampling(input))
     val updatedModelBroadcast = input.sparkContext.broadcast(newModel)
+    val fixedEffectModel = new FixedEffectModel(updatedModelBroadcast, featureShardId)
+    val fixedEffectOptimizationTracker = new FixedEffectOptimizationTracker(optimizationTracker)
 
-    new FixedEffectModel(updatedModelBroadcast, featureShardId)
+    (fixedEffectModel, fixedEffectOptimizationTracker)
   }
 
   /**

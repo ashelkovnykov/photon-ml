@@ -39,7 +39,7 @@ class RandomEffectOptimizationTrackerIntegTest extends SparkTestUtils {
     optimizationStatesTracker1.convergenceReason = Some(FunctionValuesConverged)
     RandomEffectOptimizationTrackerIntegTest
       .getDummyOptimizerStates(1)
-      .foreach(optimizationStatesTracker1.track)
+      .foreach(optimizationStatesTracker1.append)
 
     // Tracker #2:
     // Convergence Reason = Gradient Converged
@@ -48,7 +48,7 @@ class RandomEffectOptimizationTrackerIntegTest extends SparkTestUtils {
     optimizationStatesTracker2.convergenceReason = Some(GradientConverged)
     RandomEffectOptimizationTrackerIntegTest
       .getDummyOptimizerStates(2)
-      .foreach(optimizationStatesTracker2.track)
+      .foreach(optimizationStatesTracker2.append)
 
     // Tracker #3:
     // Convergence Reason = None

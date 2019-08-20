@@ -145,13 +145,13 @@ object OptimizerIntegTest extends Logging {
     // The optimizer should be converged
     checkConvergence(optimizerStatesTracker.convergenceReason)
 
-    assertFalse(optimizerStatesTracker.getTrackedTimeHistory.isEmpty)
-    assertFalse(optimizerStatesTracker.getTrackedStates.isEmpty)
-    assertEquals(optimizerStatesTracker.getTrackedStates.length, optimizerStatesTracker.getTrackedTimeHistory.length)
+    assertFalse(optimizerStatesTracker.trackedStateTimes.isEmpty)
+    assertFalse(optimizerStatesTracker.trackedStates.isEmpty)
+    assertEquals(optimizerStatesTracker.trackedStates.length, optimizerStatesTracker.trackedStateTimes.length)
 
-    val optimizedObj = optimizerStatesTracker.getTrackedStates.last.loss
-    val optimizedGradientNorm = norm(optimizerStatesTracker.getTrackedStates.last.gradient, 2)
-    val optimizedParam = optimizerStatesTracker.getTrackedStates.last.coefficients
+    val optimizedObj = optimizerStatesTracker.trackedStates.last.loss
+    val optimizedGradientNorm = norm(optimizerStatesTracker.trackedStates.last.gradient, 2)
+    val optimizedParam = optimizerStatesTracker.trackedStates.last.coefficients
 
     if (optimizerStatesTracker.convergenceReason.forall(_ == FunctionValuesConverged)) {
       // Expected answer in terms of optimal objective

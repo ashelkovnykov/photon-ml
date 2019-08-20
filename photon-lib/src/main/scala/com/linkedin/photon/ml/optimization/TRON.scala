@@ -63,115 +63,105 @@ import com.linkedin.photon.ml.util.{BroadcastWrapper, Logging, VectorUtils}
  * Reference 2:
  *   [[http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/distributed-liblinear/spark/running_spark_liblinear.html]]
  *
+ * @param objectiveFunction
+ * @param relTolerance The tolerance threshold for improvement between iterations as a percentage of the initial loss
+ * @param maxNumIterations The cut-off for number of optimization iterations to perform.
  * @param normalizationContext The normalization context
- * @param maxNumImprovementFailures The maximum allowed number of times in a row the objective hasn't improved. For
+ * @param maxNumImprovementFailures The maximum number of successive times that the objective may fail to improve. For
  *                                  most optimizers using line search, like L-BFGS, the improvement failure is not
  *                                  supposed to happen, because any improvement failure should be captured during the
  *                                  line search step. Here we are trying to capture the improvement failure after the
  *                                  gradient step. As a result, any improvement failure in this case results from some
  *                                  bug and we should not tolerate it. However, for optimizers like TRON occasional
  *                                  improvement failure is acceptable.
- * @param tolerance The tolerance threshold for improvement between iterations as a percentage of the initial loss
- * @param maxNumIterations The cut-off for number of optimization iterations to perform.
- * @param constraintMap (Optional) The map of constraints on the feature coefficients
+ * @param constraintMapOpt (Optional) The map of constraints on the feature coefficients
  */
-class TRON(
-    normalizationContext: BroadcastWrapper[NormalizationContext],
+class TRON[Function <: TwiceDiffFunction](
+    override protected val objectiveFunction: Function,
+    override protected val relTolerance: Double,
+    override protected val maxNumIterations: Int,
+    override val normalizationContext: BroadcastWrapper[NormalizationContext],
     maxNumImprovementFailures: Int = TRON.DEFAULT_MAX_NUM_FAILURE,
-    tolerance: Double = TRON.DEFAULT_TOLERANCE,
-    maxNumIterations: Int = TRON.DEFAULT_MAX_ITER,
-    constraintMap: Option[Map[Int, (Double, Double)]] = Optimizer.DEFAULT_CONSTRAINT_MAP)
-  extends Optimizer[TwiceDiffFunction](
-    tolerance,
+    constraintMapOpt: Option[Map[Int, (Double, Double)]] = TRON.DEFAULT_CONSTRAINT_MAP)
+  extends DiffOptimizer[Function](
+    objectiveFunction,
+    relTolerance,
     maxNumIterations,
-    normalizationContext,
-    constraintMap) {
+    normalizationContext) {
+
+  import TRON._
 
   /**
-   * Initialize the hyperparameters for TRON (see Reference 2 for more details).
-   */
-  private val (eta0, eta1, eta2) = (1e-4, 0.25, 0.75)
-  private val (sigma1, sigma2, sigma3) = (0.25, 0.5, 4.0)
-
-  /**
-   * delta is the trust region size.
+   * The size of the trust region.
    */
   private var delta = Double.MaxValue
-
-  /**
-   * Initialize the trust region size.
-   *
-   * @param objectiveFunction The objective function to be optimized
-   * @param initState The initial state of the optimizer
-   * @param data The training data
-   */
-  def init(objectiveFunction: TwiceDiffFunction, initState: OptimizerState)(data: objectiveFunction.Data): Unit =
-    delta = norm(initState.gradient, 2)
-
-  /**
-   * Get the optimizer's state.
-   *
-   * @param objectiveFunction The objective function to be optimized
-   * @param coefficients The model coefficients
-   * @param iter The current iteration of the optimizer
-   * @param data The training data
-   * @return The current optimizer state
-   */
-  protected def calculateState
-    (objectiveFunction: TwiceDiffFunction, coefficients: Vector[Double], iter: Int = 0)
-    (data: objectiveFunction.Data): OptimizerState = {
-
-    val convertedCoefficients = objectiveFunction.convertFromVector(coefficients)
-    val (value, gradient) = objectiveFunction.calculate(data, convertedCoefficients, normalizationContext)
-
-    objectiveFunction.cleanupCoefficients(convertedCoefficients)
-    OptimizerState(coefficients, value, gradient, iter)
-  }
+  private var iter = 0
+  private var prevCoef = Vector[Double](0D)
+  private var prevLoss = Double.MaxValue
+  private var prevGradient = Vector[Double](0D)
 
   /**
    * Reset the delta.
    */
-  override def clearOptimizerInnerState(): Unit = {
+  override protected def clearOptimizerInnerState(): Unit = {
 
     super.clearOptimizerInnerState()
+
     delta = Double.MaxValue
+    iter = 0
+    prevCoef = Vector[Double](0D)
+    prevLoss = Double.MaxValue
+    prevGradient = Vector[Double](0D)
+  }
+
+  /**
+   * Initialize the trust region size.
+   *
+   * @param initialState
+   * @param data The training data
+   */
+  override protected def init(initialState: OptimizerState, data: objectiveFunction.Data): Unit = {
+
+    super.init(initialState, data)
+
+    zeroState match {
+      case state: DiffOptimizerState =>
+        delta = state.gradientNorm
+        iter = state.iter
+        prevCoef = state.coefficients
+        prevLoss = state.loss
+        prevGradient = state.gradient
+
+      case state =>
+        throw new IllegalArgumentException(s"Unexpected initial-state type: ${state.getClass.getName}")
+    }
   }
 
   /**
    * Run one iteration of the optimizer given the current state.
    *
-   * @param objectiveFunction The objective function to be optimized
-   * @param currState The current optimizer state
    * @param data The training data
    * @return The updated state of the optimizer
    */
-  protected def runOneIteration
-    (objectiveFunction: TwiceDiffFunction, currState: OptimizerState)
-    (data: objectiveFunction.Data): OptimizerState = {
+  override protected def runOneIteration(data: objectiveFunction.Data): Option[DiffOptimizerState] = {
 
-    val prevCoefficients = currState.coefficients
-    val convertedPrevCoefficients = objectiveFunction.convertFromVector(prevCoefficients)
-    val prevFunctionValue = currState.loss
-    val prevFunctionGradient = currState.gradient
-    val prevIter = currState.iter
-    val isFirstIteration = currState.iter == 0
+    val convertedPrevCoefficients = objectiveFunction.convertFromVector(prevCoef)
 
     var improved = false
     var numImprovementFailure = 0
-    var finalState = currState
+    var finalState: Option[DiffOptimizerState] = None
+
     do {
       // Retry the TRON optimization with the shrunken trust region boundary (delta) until either:
       // 1. The function value is improved
       // 2. The maximum number of improvement failures reached.
       val (cgIter, step, residual) = TRON.truncatedConjugateGradientMethod(
-        objectiveFunction,
-        prevFunctionGradient,
-        normalizationContext,
-        delta)(data, convertedPrevCoefficients)
+        objectiveFunction, prevGradient, normalizationContext, delta)(
+        data, convertedPrevCoefficients)
 
-      val updatedCoefficients = prevCoefficients + step
+      val updatedCoefficients = prevCoef + step
       val convertedUpdatedCoefficients = objectiveFunction.convertFromVector(updatedCoefficients)
-      val gs = prevFunctionGradient.dot(step)
+      val gs = prevGradient.dot(step)
       // Compute the predicted reduction
       val predictedReduction = -0.5 * (gs - step.dot(residual))
       // Function value
@@ -183,53 +173,61 @@ class TRON(
       objectiveFunction.cleanupCoefficients(convertedUpdatedCoefficients)
 
       // Compute the actual reduction.
-      val actualReduction = prevFunctionValue - updatedFunctionValue
+      val actualReduction = prevLoss - updatedFunctionValue
       val stepNorm = norm(step, 2)
 
       // On the first iteration, adjust the initial step bound.
-      if (isFirstIteration) {
+      if (iter == 0) {
         delta = math.min(delta, stepNorm)
       }
 
       // Compute prediction alpha*stepNorm of the step.
-      val alpha = if (updatedFunctionValue - prevFunctionValue - gs <= 0) {
-          sigma3
+      val alpha = if (updatedFunctionValue - prevLoss - gs <= 0) {
+          SIGMA_3
         } else {
-          math.max(sigma1, -0.5 * (gs / (updatedFunctionValue - prevFunctionValue - gs)))
+          math.max(SIGMA_1, -0.5 * (gs / (updatedFunctionValue - prevLoss - gs)))
         }
 
       // Update the trust region bound according to the ratio of actual to predicted reduction.
-      if (actualReduction < eta0 * predictedReduction) {
-        delta = math.min(math.max(alpha, sigma1) * stepNorm, sigma2 * delta)
-      } else if (actualReduction < eta1 * predictedReduction) {
-        delta = math.max(sigma1 * delta, math.min(alpha * stepNorm, sigma2 * delta))
-      } else if (actualReduction < eta2 * predictedReduction) {
-        delta = math.max(sigma1 * delta, math.min(alpha * stepNorm, sigma3 * delta))
+      if (actualReduction < ETA_0 * predictedReduction) {
+        delta = math.min(math.max(alpha, SIGMA_1) * stepNorm, SIGMA_2 * delta)
+      } else if (actualReduction < ETA_1 * predictedReduction) {
+        delta = math.max(SIGMA_1 * delta, math.min(alpha * stepNorm, SIGMA_2 * delta))
+      } else if (actualReduction < ETA_2 * predictedReduction) {
+        delta = math.max(SIGMA_1 * delta, math.min(alpha * stepNorm, SIGMA_3 * delta))
       } else {
-        delta = math.max(delta, math.min(alpha * stepNorm, sigma3 * delta))
+        delta = math.max(delta, math.min(alpha * stepNorm, SIGMA_3 * delta))
       }
       val gradientNorm = norm(updatedFunctionGradient, 2)
       val residualNorm = norm(residual, 2)
-      logger.debug(f"iter $prevIter%3d act $actualReduction%5.3e pre $predictedReduction%5.3e delta $delta%5.3e " +
-        f"f $updatedFunctionValue%5.3e |residual| $residualNorm%5.3e |g| $gradientNorm%5.3e CG $cgIter%3d")
 
-      if (actualReduction > eta0 * predictedReduction) {
+      if (logger.isDebugEnabled) {
+        logger.debug(
+          f"iter $iter%3d act $actualReduction%5.3e pre $predictedReduction%5.3e delta $delta%5.3e " +
+            f"f $updatedFunctionValue%5.3e |residual| $residualNorm%5.3e |g| $gradientNorm%5.3e CG $cgIter%3d")
+      }
+
+      if (actualReduction > ETA_0 * predictedReduction) {
         // if the actual function value reduction is greater than eta0 times the predicted function value reduction,
         // we accept the updated coefficients and move forward with the updated optimizer state
         val coefficients = updatedCoefficients
 
         improved = true
-        /* project coefficients into constrained space, if any, after the optimization step */
-        finalState = OptimizerState(
-          OptimizationUtils.projectCoefficientsToSubspace(coefficients, constraintMap),
-          updatedFunctionValue,
-          updatedFunctionGradient,
-          prevIter + 1)
+        // project coefficients into constrained space, if any, after the optimization step
+        val projectedCoefficients = OptimizationUtils.projectCoefficientsToSubspace(coefficients, constraintMapOpt)
+
+        finalState = Some(DiffOptimizerState(iter, projectedCoefficients, updatedFunctionValue, updatedFunctionGradient))
+
+        iter = iter + 1
+        prevCoef = projectedCoefficients
+        prevLoss = updatedFunctionValue
+        prevGradient = updatedFunctionGradient
+
       } else {
         // otherwise, the updated coefficients will not be accepted, and the old state will be returned along with
         // warning messages
         logger.warn(s"actual objective function value reduction is smaller than predicted " +
-          s"(actualReduction = $actualReduction < eta0 = $eta0 * predictedReduction = $predictedReduction)")
+          s"(actualReduction = $actualReduction < eta0 = $ETA_0 * predictedReduction = $predictedReduction)")
         if (updatedFunctionValue < -1.0e+32) {
           logger.warn("updated function value < -1.0e+32")
         }
@@ -239,6 +237,7 @@ class TRON(
         if (math.abs(actualReduction) <= 1.0e-12 && math.abs(predictedReduction) <= 1.0e-12) {
           logger.warn("both actual reduction and predicted reduction of function value are too small")
         }
+
         numImprovementFailure += 1
       }
     } while (!improved && numImprovementFailure < maxNumImprovementFailures)
@@ -250,6 +249,16 @@ class TRON(
 }
 
 object TRON extends Logging {
+
+  // Initialize the hyperparameters for TRON (see Reference 2 for more details).
+  private val ETA_0 = 1e-4
+  private val ETA_1 = 0.25
+  private val ETA_2 = 0.75
+  private val SIGMA_1 = 0.25
+  private val SIGMA_2 = 0.5
+  private val SIGMA_3 = 4.0
+
+  val DEFAULT_CONSTRAINT_MAP: Option[Map[Int, (Double, Double)]] = None
   val DEFAULT_MAX_NUM_FAILURE = 5
   val DEFAULT_TOLERANCE = 1.0E-5
   val DEFAULT_MAX_ITER = 15
@@ -272,12 +281,12 @@ object TRON extends Logging {
    * @return Tuple3(number of CG iterations, solution, residual)
    */
   private def truncatedConjugateGradientMethod(
-    objectiveFunction: TwiceDiffFunction,
-    gradient: Vector[Double],
-    normalizationContext: BroadcastWrapper[NormalizationContext],
-    truncationBoundary: Double)
-    (data: objectiveFunction.Data,
-    coefficients: objectiveFunction.Coefficients): (Int, Vector[Double], Vector[Double]) = {
+      objectiveFunction: TwiceDiffFunction,
+      gradient: Vector[Double],
+      normalizationContext: BroadcastWrapper[NormalizationContext],
+      truncationBoundary: Double)
+      (data: objectiveFunction.Data,
+      coefficients: objectiveFunction.Coefficients): (Int, Vector[Double], Vector[Double]) = {
 
     val step = VectorUtils.zeroOfSameType(gradient)
     val residual = gradient * -1.0

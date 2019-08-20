@@ -55,7 +55,7 @@ object SparkSessionConfiguration {
     classOf[HessianVectorAggregator],
     classOf[LinearSubspaceProjector],
     classOf[LabeledPoint],
-    classOf[LBFGS],
+    classOf[LBFGS[_]],
     classOf[LinearRegressionModel],
     classOf[LocalDataset],
     classOf[LogisticRegressionModel],
@@ -64,7 +64,7 @@ object SparkSessionConfiguration {
     classOf[ObjectiveFunction],
     classOf[OptimizationStatesTracker],
     classOf[Option[_]],
-    classOf[OWLQN],
+    classOf[OWLQN[_]],
     classOf[PoissonRegressionModel],
     classOf[RegularizationContext],
     classOf[Set[Int]],
@@ -72,7 +72,7 @@ object SparkSessionConfiguration {
     classOf[SingleNodeOptimizationProblem[_]],
     classOf[SmoothedHingeLossLinearSVMModel],
     classOf[SparseVector[Double]],
-    classOf[TRON],
+    classOf[TRON[_]],
     classOf[ValueAndGradientAggregator],
     classOf[Vector[Double]])
 

@@ -141,7 +141,7 @@ class DistributedOptimizationProblemTest {
     doReturn(normalization).when(broadcastNormalization).value
     doReturn((means, None)).when(optimizer).optimize(objectiveFunction, means)(trainingData)
     doReturn(statesTracker).when(optimizer).getStateTracker
-    doReturn(Array(state)).when(statesTracker).getTrackedStates
+    doReturn(Array(state)).when(statesTracker).trackedStates
     doReturn(means).when(state).coefficients
     doReturn(coefficients).when(initialModel).coefficients
     doReturn(means).when(coefficients).means

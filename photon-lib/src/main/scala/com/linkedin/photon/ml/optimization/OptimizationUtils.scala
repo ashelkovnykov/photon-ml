@@ -22,6 +22,7 @@ import com.linkedin.photon.ml.util.VectorUtils
  * General purpose utils that can be leveraged by the various optimizers.
  */
 object OptimizationUtils {
+
   /**
    * Project a coefficient to a constrained space, specified by a bounding range [L, U]:
    *
@@ -31,7 +32,7 @@ object OptimizationUtils {
    * @param bounds The bounding range
    * @return New value of coeff after projection
    */
-  private[this] def projectCoefficientToInterval(coefficient: Double, bounds: Option[(Double, Double)]): Double =
+  private def projectCoefficientToInterval(coefficient: Double, bounds: Option[(Double, Double)]): Double =
     bounds match {
       case Some((lowerBound, upperBound)) =>
         if (coefficient < lowerBound) {
@@ -53,7 +54,7 @@ object OptimizationUtils {
    * @param constraintMapOption Map of feature index to the bounds that are to be enforced on that particular feature
    * @return Projected value of coefficients
    */
-  def projectCoefficientsToSubspace(
+  protected[optimization] def projectCoefficientsToSubspace(
       coefficients: Vector[Double],
       constraintMapOption: Option[Map[Int, (Double, Double)]]): Vector[Double] =
 

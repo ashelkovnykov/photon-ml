@@ -288,29 +288,22 @@ object RandomEffectCoordinate {
           .leftOuterJoin(dataAndOptimizationProblems)
           .mapValues {
             case (localModel, Some((localDataset, optimizationProblem))) =>
-              val trainingLabeledPoints = localDataset.dataPoints.map(_._2)
-              val updatedModel = optimizationProblem.run(trainingLabeledPoints, localModel)
-              val stateTrackers = optimizationProblem.getStatesTracker
-
-              (updatedModel, Some(stateTrackers))
+              optimizationProblem.run(localDataset.dataPoints.map(_._2), localModel)
 
             case (localModel, _) =>
-              (localModel, None)
+              (localModel, new OptimizationStatesTracker(System.currentTimeMillis()))
           }
         modelsAndTrackers.persist(StorageLevel.MEMORY_ONLY_SER)
 
         val models = modelsAndTrackers.mapValues(_._1)
-        val optimizationTracker = RandomEffectOptimizationTracker(modelsAndTrackers.flatMap(_._2._2))
+        val trackers = modelsAndTrackers.values.map(_._2).filter(_.convergenceReason.isDefined)
+        val optimizationTracker = RandomEffectOptimizationTracker(trackers)
 
         (models, optimizationTracker)
       }
       .getOrElse {
         val modelsAndTrackers = dataAndOptimizationProblems.mapValues { case (localDataset, optimizationProblem) =>
-          val trainingLabeledPoints = localDataset.dataPoints.map(_._2)
-          val newModel = optimizationProblem.run(trainingLabeledPoints)
-          val stateTrackers = optimizationProblem.getStatesTracker
-
-          (newModel, stateTrackers)
+          optimizationProblem.run(localDataset.dataPoints.map(_._2))
         }
         modelsAndTrackers.persist(StorageLevel.MEMORY_ONLY_SER)
 

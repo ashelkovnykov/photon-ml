@@ -62,11 +62,13 @@ protected[ml] class DistributedOptimizationProblem[Objective <: DistributedObjec
    * @param regularizationWeight The new regularization weight
    */
   def updateRegularizationWeight(regularizationWeight: Double): Unit = {
+
     optimizer match {
-      case owlqn: OWLQN =>
+      case owlqn: OWLQN[Objective] =>
         owlqn.l1RegularizationWeight = regularizationContext.getL1RegularizationWeight(regularizationWeight)
       case _ =>
     }
+
     objectiveFunction match {
       case l2RegFunc: DistributedObjectiveFunction with L2Regularization =>
         l2RegFunc.l2RegularizationWeight = regularizationContext.getL2RegularizationWeight(regularizationWeight)
@@ -114,7 +116,7 @@ protected[ml] class DistributedOptimizationProblem[Objective <: DistributedObjec
    * @param input The training data
    * @return The learned [[GeneralizedLinearModel]]
    */
-  override def run(input: RDD[LabeledPoint]): GeneralizedLinearModel =
+  override def run(input: RDD[LabeledPoint]): (GeneralizedLinearModel, OptimizationStatesTracker) =
     run(input, initializeZeroModel(input.first.features.size))
 
   /**
@@ -125,13 +127,15 @@ protected[ml] class DistributedOptimizationProblem[Objective <: DistributedObjec
    * @param initialModel The initial model from which to begin optimization
    * @return The learned [[GeneralizedLinearModel]]
    */
-  override def run(input: RDD[LabeledPoint], initialModel: GeneralizedLinearModel): GeneralizedLinearModel = {
+  override def run(
+      input: RDD[LabeledPoint],
+      initialModel: GeneralizedLinearModel): (GeneralizedLinearModel, OptimizationStatesTracker) = {
 
-    val normalizationContext = optimizer.getNormalizationContext
-    val (optimizedCoefficients, _) = optimizer.optimize(objectiveFunction, initialModel.coefficients.means)(input)
+    val normalizationContext = optimizer.normalizationContext
+    val (optimizedCoefficients, optimizationTracker) = optimizer.optimize(initialModel.coefficients.means, input)
     val optimizedVariances = computeVariances(input, optimizedCoefficients)
 
-    createModel(normalizationContext, optimizedCoefficients, optimizedVariances)
+    (createModel(normalizationContext, optimizedCoefficients, optimizedVariances), optimizationTracker)
   }
 
   /**
@@ -141,7 +145,7 @@ protected[ml] class DistributedOptimizationProblem[Objective <: DistributedObjec
    * @param input The training data
    * @return The learned [[GeneralizedLinearModel]]
    */
-  def runWithSampling(input: RDD[(UniqueSampleId, LabeledPoint)]): GeneralizedLinearModel =
+  def runWithSampling(input: RDD[(UniqueSampleId, LabeledPoint)]): (GeneralizedLinearModel, OptimizationStatesTracker) =
     runWithSampling(input, initializeZeroModel(input.first._2.features.size))
 
   /**
@@ -154,7 +158,7 @@ protected[ml] class DistributedOptimizationProblem[Objective <: DistributedObjec
    */
   def runWithSampling(
       input: RDD[(UniqueSampleId, LabeledPoint)],
-      initialModel: GeneralizedLinearModel): GeneralizedLinearModel = {
+      initialModel: GeneralizedLinearModel): (GeneralizedLinearModel, OptimizationStatesTracker) = {
 
     val data = (samplerOption match {
         case Some(sampler) => sampler.downSample(input).values
@@ -196,9 +200,12 @@ object DistributedOptimizationProblem {
     val regularizationWeight = configuration.regularizationWeight
     // Will result in a runtime error if created Optimizer cannot be cast to an Optimizer that can handle the given
     // objective function.
-    val optimizer = OptimizerFactory
-      .build(optimizerConfig, normalizationContext, regularizationContext, regularizationWeight)
-      .asInstanceOf[Optimizer[Function]]
+    val optimizer = OptimizerFactory.build(
+      optimizerConfig,
+      objectiveFunction,
+      normalizationContext,
+      regularizationContext,
+      regularizationWeight)
 
     new DistributedOptimizationProblem(
       optimizer,

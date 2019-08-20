@@ -15,8 +15,9 @@
 package com.linkedin.photon.ml.optimization
 
 import breeze.linalg.Vector
-import breeze.optimize.{OWLQN => BreezeOWLQN}
+import breeze.optimize.{DiffFunction => BreezeDiffFunction, OWLQN => BreezeOWLQN}
 
+import com.linkedin.photon.ml.function.DiffFunction
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.util.BroadcastWrapper
 
@@ -25,30 +26,33 @@ import com.linkedin.photon.ml.util.BroadcastWrapper
  * For optimization with L1 penalty term, the optimization algorithm is a modified Quasi-Newton algorithm called OWL-QN.
  * Reference: [[http://research.microsoft.com/en-us/downloads/b1eb1016-1738-4bd5-83a9-370c9d498a03/]]
  *
- * @param l1RegWeight The L1 regularization weight
- * @param normalizationContext The normalization context
- * @param numCorrections The number of corrections used in the LBFGS update. Default 10. Values of numCorrections less
- *                       than 3 are not recommended; large values of numCorrections will result in excessive computing
- *                       time.
- *                       Recommended:  3 < numCorrections < 10
- *                       Restriction:  numCorrections > 0
- * @param tolerance The tolerance threshold for improvement between iterations as a percentage of the initial loss
+ * @param objectiveFunction
+ * @param relTolerance The tolerance threshold for improvement between iterations as a percentage of the initial loss
  * @param maxNumIterations The cut-off for number of optimization iterations to perform.
- * @param constraintMap (Optional) The map of constraints on the feature coefficients
+ * @param normalizationContext The normalization context
+ * @param l1RegWeight The L1 regularization weight
+ * @param numCorrections The number of corrections (tracked historical states of position and gradient) used by the
+ *                       LBFGS algorithm to update its inverse Hessian matrix estimate. Small values of are inaccurate;
+ *                       large values of result in excessive computing time.
+ *                       Restriction:  numCorrections > 0
+ *                       Recommended:  3 < numCorrections < 11
+ * @param constraintMapOpt (Optional) The map of constraints on the feature coefficients
  */
-class OWLQN(
+class OWLQN[Function <: DiffFunction](
+    override protected val objectiveFunction: Function,
+    override protected val relTolerance: Double,
+    override protected val maxNumIterations: Int,
+    override val normalizationContext: BroadcastWrapper[NormalizationContext],
     l1RegWeight: Double,
-    normalizationContext: BroadcastWrapper[NormalizationContext],
     numCorrections: Int = LBFGS.DEFAULT_NUM_CORRECTIONS,
-    tolerance: Double = LBFGS.DEFAULT_TOLERANCE,
-    maxNumIterations: Int = LBFGS.DEFAULT_MAX_ITER,
-    constraintMap: Option[Map[Int, (Double, Double)]] = Optimizer.DEFAULT_CONSTRAINT_MAP)
+    constraintMapOpt: Option[Map[Int, (Double, Double)]] = LBFGS.DEFAULT_CONSTRAINT_MAP)
   extends LBFGS(
+    objectiveFunction,
+    relTolerance,
+    maxNumIterations,
     normalizationContext,
     numCorrections,
-    tolerance,
-    maxNumIterations,
-    constraintMap) {
+    constraintMapOpt) {
 
   protected var regularizationWeight: Double = l1RegWeight
 
@@ -69,15 +73,31 @@ class OWLQN(
   }
 
   /**
+   * Initialize breeze optimization engine.
+   *
    * Under the hood, this adaptor uses an OWLQN
    * ([[http://www.scalanlp.org/api/breeze/index.html#breeze.optimize.OWLQN breeze.optimize.OWLQN]]) optimizer from
    * Breeze to optimize functions with L1 penalty term. The DiffFunction is modified into a Breeze DiffFunction which
    * the Breeze optimizer can understand. The L1 penalty is implemented in the optimizer level. See
    * [[http://www.scalanlp.org/api/breeze/index.html#breeze.optimize.OWLQN breeze.optimize.OWLQN]].
+   *
+   * @param initialCoefficients
+   * @param data The training data
    */
-  override protected val breezeOptimizer = new BreezeOWLQN[Int, Vector[Double]](
-    maxNumIterations,
-    numCorrections,
-    (_: Int) => regularizationWeight,
-    tolerance)
+  override protected def initBreezeOptimizer(initialCoefficients: Vector[Double], data: objectiveFunction.Data): Unit = {
+
+    val breezeDiffFunction = new BreezeDiffFunction[Vector[Double]]() {
+      // Calculating the gradient and value of the objective function
+      def calculate(coefficients: Vector[Double]): (Double, Vector[Double]) = {
+        val convertedCoefficients = objectiveFunction.convertFromVector(coefficients)
+        val result = objectiveFunction.calculate(data, convertedCoefficients, normalizationContext)
+
+        objectiveFunction.cleanupCoefficients(convertedCoefficients)
+        result
+      }
+    }
+
+    breezeStates = new BreezeOWLQN[Int, Vector[Double]](maxNumIterations, numCorrections, relTolerance).iterations(breezeDiffFunction, initialCoefficients)
+    breezeStates.next()
+  }
 }

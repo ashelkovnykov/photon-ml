@@ -359,7 +359,7 @@ protected[ml] class Driver(
           logger.info(s"Model with lambda = $regularizationWeight:")
 
           val perIterationMetrics = optimizationStatesTracker
-            .getTrackedStates
+            .trackedStates
             .map { optimizerState =>
               val model = glm.updateCoefficients(Coefficients(optimizerState.coefficients, None))
               val metrics = Evaluation.evaluate(model, validationData)

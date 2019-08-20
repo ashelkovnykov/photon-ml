@@ -68,7 +68,7 @@ object RandomEffectOptimizationTracker{
       .toMap
     val iterationsStats = optimizationStatesTrackers
       .map { optimizationStatesTracker =>
-        val trackedStates = optimizationStatesTracker.getTrackedStates
+        val trackedStates = optimizationStatesTracker.trackedStates
 
         if (trackedStates.isEmpty) {
           0
@@ -78,7 +78,7 @@ object RandomEffectOptimizationTracker{
       }
       .stats()
     val timeElapsedStats = optimizationStatesTrackers
-      .map(_.getTrackedTimeHistory)
+      .map(_.trackedStateTimes)
       // Filter out times for random effects that never ran
       .filter(_.length > 0)
       .map(_.last * 1E-3)

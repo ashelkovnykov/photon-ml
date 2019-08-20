@@ -465,7 +465,7 @@ object GameTrainingDriver extends GameDriver {
     }
 
     val tunedModels = Timed("Tune hyperparameters") {
-      // Disable warm start for autotuning
+      // Disable warm start for auto-tuning
       gameEstimator.setUseWarmStart(false)
       runHyperparameterTuning(gameEstimator, trainingData, validationData, explicitModels)
     }

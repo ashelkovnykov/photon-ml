@@ -227,7 +227,7 @@ object BaseGLMIntegTest {
    * @param history The optimization state history
    */
   def checkConvergence(history: OptimizationStatesTracker): Unit =
-    history.getTrackedStates.foldLeft(Double.MaxValue) { case (prevValue, state) =>
+    history.trackedStates.foldLeft(Double.MaxValue) { case (prevValue, state) =>
       assertTrue(
         prevValue >= state.loss,
         s"Objective should be monotonically decreasing (current=[${state.loss}], previous=[$prevValue])")

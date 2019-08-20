@@ -14,22 +14,46 @@
  */
 package com.linkedin.photon.ml.optimization
 
+import java.text.MessageFormat
+
 import breeze.linalg.Vector
+
+import com.linkedin.photon.ml.util.Summarizable
 
 /**
  * Similar to [[http://www.scalanlp.org/api/breeze/index.html#breeze.optimize.FirstOrderMinimizer\$State breeze.
  *   optimize.FirstOrderMinimizer.State]]
  *
- * This class tracks the information about the optimizer, including the coefficients, objective function value +
- * gradient, and the current iteration number.
+ * This class tracks the information about the optimizer, including the iteration, coefficients, objective function and
+ * value.
  *
- * @param coefficients The current coefficients being optimized
- * @param loss The current objective function's value
- * @param gradient The current objective function's gradient
  * @param iter The current iteration number
+ * @param coefficients The optimized coefficients for the current iteration
+ * @param loss The objective function value for the coefficients
  */
-protected[optimization] case class OptimizerState(
-    coefficients: Vector[Double],
-    loss: Double,
-    gradient: Vector[Double],
-    iter: Int)
+protected[optimization] class OptimizerState(
+    val iter: Int,
+    val coefficients: Vector[Double],
+    val loss: Double)
+  extends Summarizable {
+
+  import OptimizerState._
+
+  def summaryAxis: String = SUMMARY_AXIS
+
+  override def toSummaryString: String = MessageFormat.format(STRING_TEMPLATE, f"$iter%10d", f"$loss%25.8f")
+}
+
+object OptimizerState {
+
+  private val STRING_TEMPLATE = "{0}{1}"
+  private val ITER = "Iter"
+  private val LOSS = "Loss Value"
+  val SUMMARY_AXIS: String = String.format("%10s%25s", ITER, LOSS)
+
+  def apply(iter: Int, coefficients: Vector[Double], loss: Double): OptimizerState =
+    new OptimizerState(iter, coefficients, loss)
+
+  def unapply(arg: OptimizerState): Option[(Int, Vector[Double], Double)] =
+    Some(arg.iter, arg.coefficients, arg.loss)
+}

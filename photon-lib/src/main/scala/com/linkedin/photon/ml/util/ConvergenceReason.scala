@@ -15,28 +15,29 @@
 package com.linkedin.photon.ml.util
 
 /**
- * Represents reasons for convergence, with string descriptions (inspired by: breeze.optimize.FirstOrderMinimizer).
+ * Enumeration for optimization convergence reasons, with String summaries (inspired by:
+ * [[breeze.optimize.FirstOrderMinimizer]]).
  */
 sealed trait ConvergenceReason {
-  def reason: String
+  def summary: String
 }
 
 case object DidNotConverge extends ConvergenceReason {
-  override def reason: String = "did not converge"
+  override def summary: String = "did not converge"
 }
 
 case object MaxIterations extends ConvergenceReason {
-  override def reason: String = "max iterations reached"
+  override def summary: String = "max iterations reached"
 }
 
 case object FunctionValuesConverged extends ConvergenceReason {
-  override def reason: String = "function values converged"
+  override def summary: String = "function values converged"
 }
 
 case object GradientConverged extends ConvergenceReason {
-  override def reason: String = "gradient converged"
+  override def summary: String = "gradient converged"
 }
 
 case object ObjectiveNotImproving extends ConvergenceReason {
-  override def reason: String = "objective is not improving"
+  override def summary: String = "objective is not improving"
 }

@@ -22,7 +22,7 @@ dependencies {
     exclude group: 'org.apache.avro', module: 'avro-mapred'
   }
   compile("org.apache.spark:spark-sql$scalaSuffix:$sparkVersion")
-  compile("org.scalanlp:breeze$scalaSuffix:0.11.2")
-  compile("org.scalanlp:breeze-macros$scalaSuffix:0.11.2")
+  compile("org.scalanlp:breeze$scalaSuffix:0.13.2")
+  compile("org.scalanlp:breeze-macros$scalaSuffix:0.13.2")
   compile("org.testng:testng:6.9.9")
 }

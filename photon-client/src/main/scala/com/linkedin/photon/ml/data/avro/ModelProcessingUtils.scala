@@ -432,40 +432,38 @@ object ModelProcessingUtils {
   private def optimizationConfigToJson(optimizationConfig: CoordinateOptimizationConfiguration): String =
     optimizationConfig match {
       case feOptConfig: FixedEffectOptimizationConfiguration =>
+
+        val FixedEffectOptimizationConfiguration(optType, maxIter, tolerance, regContext, regWeight, _, _, downRate) =
+          feOptConfig
+
         s"""
            |{
-           |  "optimizerConfig": ${optimizerConfigToJson(feOptConfig.optimizerConfig)},
-           |  "regularizationContext": ${regularizationContextToJson(feOptConfig.regularizationContext)},
-           |  "regularizationWeight": ${feOptConfig.regularizationWeight},
-           |  "downSamplingRate": ${feOptConfig.downSamplingRate}
+           |  "optimizerType": "$optType",
+           |  "maximumIterations": $maxIter,
+           |  "tolerance": $tolerance,
+           |  "regularizationContext": ${regularizationContextToJson(regContext)},
+           |  "regularizationWeight": $regWeight,
+           |  "downSamplingRate": $downRate
            |}""".stripMargin
 
       case reOptConfig: RandomEffectOptimizationConfiguration =>
+
+        val RandomEffectOptimizationConfiguration(optType, maxIter, tolerance, regContext, regWeight, _, _) =
+          reOptConfig
+
         s"""
            |{
-           |  "optimizerConfig": ${optimizerConfigToJson(reOptConfig.optimizerConfig)} ,
-           |  "regularizationContext": ${regularizationContextToJson(reOptConfig.regularizationContext)},
-           |  "regularizationWeight": ${reOptConfig.regularizationWeight}
+           |  "optimizerType": "$optType",
+           |  "maximumIterations": $maxIter,
+           |  "tolerance": $tolerance,
+           |  "regularizationContext": ${regularizationContextToJson(regContext)},
+           |  "regularizationWeight": $regWeight,
            |}""".stripMargin
 
       case _ =>
         throw new IllegalArgumentException(
           s"Unknown coordinate optimization configuration encountered: ${optimizationConfig.getClass}")
     }
-
-  /**
-   * Convert an [[OptimizerConfig]] to JSON representation.
-   *
-   * @param optimizerConfig The [[OptimizerConfig]] to convert
-   * @return The converted JSON representation
-   */
-  private def optimizerConfigToJson(optimizerConfig: OptimizerConfig): String =
-    // Ignore box constraints for now
-    s"""{
-       |  "optimizerType": "${optimizerConfig.optimizerType}",
-       |  "maximumIterations": ${optimizerConfig.maximumIterations},
-       |  "tolerance": ${optimizerConfig.tolerance}
-       |}""".stripMargin
 
   /**
    * Convert a [[RegularizationContext]] to JSON representation.

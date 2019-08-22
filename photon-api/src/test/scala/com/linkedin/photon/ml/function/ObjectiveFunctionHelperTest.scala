@@ -22,7 +22,7 @@ import com.linkedin.photon.ml.TaskType.TaskType
 import com.linkedin.photon.ml.function.glm.DistributedGLMLossFunction
 import com.linkedin.photon.ml.function.svm.DistributedSmoothedHingeLossFunction
 import com.linkedin.photon.ml.optimization.game.FixedEffectOptimizationConfiguration
-import com.linkedin.photon.ml.optimization.{OptimizerConfig, OptimizerType}
+import com.linkedin.photon.ml.optimization.OptimizerType
 
 /**
  * Unit tests for [[ObjectiveFunctionHelper]].
@@ -63,7 +63,7 @@ class ObjectiveFunctionHelperTest {
 
 object ObjectiveFunctionHelperTest {
 
-  val COORDINATE_OPT_CONFIG = FixedEffectOptimizationConfiguration(OptimizerConfig(OptimizerType.LBFGS, 1, 2e-2))
+  val COORDINATE_OPT_CONFIG = FixedEffectOptimizationConfiguration(OptimizerType.LBFGS, 1, 2e-2)
   val MAXIMUM_ITERATIONS = 1
   val TOLERANCE = 2e-2
   val TREE_AGGREGATE_DEPTH = 3

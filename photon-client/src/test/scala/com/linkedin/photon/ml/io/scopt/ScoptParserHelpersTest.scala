@@ -153,9 +153,9 @@ class ScoptParserHelpersTest {
       case feConfig: FixedEffectCoordinateConfiguration =>
         assertEquals(feConfig.dataConfiguration.featureShardId, featureShard)
         assertEquals(feConfig.dataConfiguration.minNumPartitions, minPartitions)
-        assertEquals(feConfig.optimizationConfiguration.optimizerConfig.optimizerType, optimizer)
-        assertEquals(feConfig.optimizationConfiguration.optimizerConfig.maximumIterations, maxIter)
-        assertEquals(feConfig.optimizationConfiguration.optimizerConfig.tolerance, tolerance)
+        assertEquals(feConfig.optimizationConfiguration.optimizerType, optimizer)
+        assertEquals(feConfig.optimizationConfiguration.maximumIterations, maxIter)
+        assertEquals(feConfig.optimizationConfiguration.tolerance, tolerance)
         assertEquals(feConfig.optimizationConfiguration.regularizationContext, regularization1)
         assertEquals(feConfig.optimizationConfiguration.downSamplingRate, downSamplingRate1)
         assertEquals(feConfig.regularizationWeights, regWeights1)
@@ -184,9 +184,9 @@ class ScoptParserHelpersTest {
         assertEquals(reConfig.dataConfiguration.numActiveDataPointsLowerBound, activeDataLowerBound1)
         assertEquals(reConfig.dataConfiguration.numActiveDataPointsUpperBound, activeDataUpperBound1)
         assertEquals(reConfig.dataConfiguration.numFeaturesToSamplesRatioUpperBound, featuresSamplesRatio1)
-        assertEquals(reConfig.optimizationConfiguration.optimizerConfig.optimizerType, optimizer)
-        assertEquals(reConfig.optimizationConfiguration.optimizerConfig.maximumIterations, maxIter)
-        assertEquals(reConfig.optimizationConfiguration.optimizerConfig.tolerance, tolerance)
+        assertEquals(reConfig.optimizationConfiguration.optimizerType, optimizer)
+        assertEquals(reConfig.optimizationConfiguration.maximumIterations, maxIter)
+        assertEquals(reConfig.optimizationConfiguration.tolerance, tolerance)
         assertEquals(reConfig.optimizationConfiguration.regularizationContext, regularization1)
         assertEquals(reConfig.regularizationWeights, regWeights1)
 
@@ -427,7 +427,6 @@ class ScoptParserHelpersTest {
     val optimizer = OptimizerType.LBFGS
     val tolerance = 2e-2
     val maxIterations = 3
-    val optimizerConfig = OptimizerConfig(optimizer, maxIterations, tolerance)
     val reType = "type"
     val activeDataLowerBound = 4
     val activeDataUpperBound = 5
@@ -440,12 +439,16 @@ class ScoptParserHelpersTest {
 
     val coordinateId1 = "coordinate1"
     val downSamplingRate1 = 1.0
-    val optConfig1 = FixedEffectOptimizationConfiguration(optimizerConfig)
+    val optConfig1 = FixedEffectOptimizationConfiguration(optimizer, maxIterations, tolerance)
     val coordinateConfig1 = FixedEffectCoordinateConfiguration(feDataConfig, optConfig1)
 
     val coordinateId2 = "coordinate2"
     val downSamplingRate2 = 0.5
-    val optConfig2 = FixedEffectOptimizationConfiguration(optimizerConfig, downSamplingRate = downSamplingRate2)
+    val optConfig2 = FixedEffectOptimizationConfiguration(
+      optimizer,
+      maxIterations,
+      tolerance,
+      downSamplingRate = downSamplingRate2)
     val coordinateConfig2 = FixedEffectCoordinateConfiguration(feDataConfig, optConfig2)
 
     val coordinateId3 = "coordinate3"
@@ -456,7 +459,7 @@ class ScoptParserHelpersTest {
       None,
       None,
       None)
-    val optConfig3 = RandomEffectOptimizationConfiguration(optimizerConfig)
+    val optConfig3 = RandomEffectOptimizationConfiguration(optimizer, maxIterations, tolerance)
     val coordinateConfig3 = RandomEffectCoordinateConfiguration(dataConfig3, optConfig3)
 
     val coordinateId4 = "coordinate4"
@@ -468,7 +471,9 @@ class ScoptParserHelpersTest {
       Some(activeDataUpperBound),
       Some(featuresSamplesRatio))
     val optConfig4 = RandomEffectOptimizationConfiguration(
-      optimizerConfig,
+      optimizer,
+      maxIterations,
+      tolerance,
       ElasticNetRegularizationContext(regularizationAlpha))
     val coordinateConfig4 = RandomEffectCoordinateConfiguration(dataConfig4, optConfig4, regularizationWeights)
 

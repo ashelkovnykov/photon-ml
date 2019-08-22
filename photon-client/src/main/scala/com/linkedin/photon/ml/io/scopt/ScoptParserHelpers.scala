@@ -192,7 +192,6 @@ object ScoptParserHelpers extends Logging {
     val optimizer = OptimizerType.withName(input(COORDINATE_OPT_CONFIG_OPTIMIZER))
     val maxIter = input(COORDINATE_OPT_CONFIG_MAX_ITER).toInt
     val tolerance = input(COORDINATE_OPT_CONFIG_TOLERANCE).toDouble
-    val optimizerConfig = OptimizerConfig(optimizer, maxIter, tolerance)
 
     val regularizationContext = input
       .get(COORDINATE_OPT_CONFIG_REGULARIZATION)
@@ -238,7 +237,9 @@ object ScoptParserHelpers extends Logging {
           input.get(COORDINATE_DATA_CONFIG_ACTIVE_DATA_UPPER_BOUND).map(_.toInt),
           input.get(COORDINATE_DATA_CONFIG_FEATURES_TO_SAMPLES_RATIO).map(_.toDouble))
         val optConfig = RandomEffectOptimizationConfiguration(
-          optimizerConfig,
+          optimizer,
+          maxIter,
+          tolerance,
           regularizationContext,
           regularizationWeightRange = regularizationWeightRange,
           elasticNetParamRange = elasticNetParamRange)
@@ -255,7 +256,9 @@ object ScoptParserHelpers extends Logging {
       case None =>
         val dataConfig = FixedEffectDataConfiguration(featureShard, minPartitions)
         val optConfig = FixedEffectOptimizationConfiguration(
-          optimizerConfig,
+          optimizer,
+          maxIter,
+          tolerance,
           regularizationContext,
           regularizationWeightRange = regularizationWeightRange,
           elasticNetParamRange = elasticNetParamRange)
@@ -424,9 +427,9 @@ object ScoptParserHelpers extends Logging {
       argsMap += (COORDINATE_DATA_CONFIG_FEATURE_SHARD -> dataConfig.featureShardId)
       argsMap += (COORDINATE_DATA_CONFIG_MIN_PARTITIONS -> dataConfig.minNumPartitions.toString)
 
-      argsMap += (COORDINATE_OPT_CONFIG_OPTIMIZER -> optConfig.optimizerConfig.optimizerType.toString)
-      argsMap += (COORDINATE_OPT_CONFIG_TOLERANCE -> optConfig.optimizerConfig.tolerance.toString)
-      argsMap += (COORDINATE_OPT_CONFIG_MAX_ITER -> optConfig.optimizerConfig.maximumIterations.toString)
+      argsMap += (COORDINATE_OPT_CONFIG_OPTIMIZER -> optConfig.optimizerType.toString)
+      argsMap += (COORDINATE_OPT_CONFIG_TOLERANCE -> optConfig.tolerance.toString)
+      argsMap += (COORDINATE_OPT_CONFIG_MAX_ITER -> optConfig.maximumIterations.toString)
 
       //
       // Append optional args

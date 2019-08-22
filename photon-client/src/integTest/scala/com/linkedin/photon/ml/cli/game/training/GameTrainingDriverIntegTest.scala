@@ -717,13 +717,10 @@ object GameTrainingDriverIntegTest {
     (fixedEffectFeatureShardId, FeatureShardConfiguration(Set("features"), hasIntercept = true)))
   private val fixedEffectMinPartitions = numExecutors * 2
   private val fixedEffectDataConfig = FixedEffectDataConfiguration(fixedEffectFeatureShardId, fixedEffectMinPartitions)
-  private val fixedEffectOptimizerConfig = OptimizerConfig(
+  private val fixedEffectOptConfig = FixedEffectOptimizationConfiguration(
     OptimizerType.TRON,
     maximumIterations = 10,
     tolerance = 1e-5,
-    constraintMap = None)
-  private val fixedEffectOptConfig = FixedEffectOptimizationConfiguration(
-    fixedEffectOptimizerConfig,
     L2RegularizationContext)
   private val fixedEffectRegularizationWeights = Set(10D)
   private val fixedEffectCoordinateConfig = FixedEffectCoordinateConfiguration(
@@ -743,13 +740,10 @@ object GameTrainingDriverIntegTest {
     .map { case (reType, reShardId) =>
       RandomEffectDataConfiguration(reType, reShardId, randomEffectMinPartitions)
     }
-  private val randomEffectOptimizerConfig = OptimizerConfig(
+  private val randomEffectOptConfig = RandomEffectOptimizationConfiguration(
     OptimizerType.TRON,
     maximumIterations = 10,
     tolerance = 1e-5,
-    constraintMap = None)
-  private val randomEffectOptConfig = RandomEffectOptimizationConfiguration(
-    randomEffectOptimizerConfig,
     L2RegularizationContext)
   private val randomEffectRegularizationWeights = Set(1D)
   private val randomEffectCoordinateConfigs = randomEffectDataConfigs.map { dataConfig =>
@@ -766,14 +760,13 @@ object GameTrainingDriverIntegTest {
     (fixedEffectCoordinateId,
       FixedEffectCoordinateConfiguration(
         fixedEffectDataConfig,
-        fixedEffectOptConfig.copy(optimizerConfig = fixedEffectOptimizerConfig.copy(maximumIterations = 1)),
+        fixedEffectOptConfig.copy(maximumIterations = 1),
         fixedEffectRegularizationWeights)))
   private val randomEffectOnlySeriousGameConfig = Map(randomEffectCoordinateIds.zip(randomEffectCoordinateConfigs): _*)
   private val randomEffectOnlyToyGameConfig = randomEffectOnlySeriousGameConfig.mapValues { reCoordinateConfig =>
     RandomEffectCoordinateConfiguration(
       reCoordinateConfig.dataConfiguration,
-      reCoordinateConfig.optimizationConfiguration.copy(
-        optimizerConfig = reCoordinateConfig.optimizationConfiguration.optimizerConfig.copy(maximumIterations = 1)),
+      reCoordinateConfig.optimizationConfiguration.copy(maximumIterations = 1),
       reCoordinateConfig.regularizationWeights)
   }
   private val mixedEffectSeriousGameConfig = fixedEffectOnlySeriousGameConfig ++ randomEffectOnlySeriousGameConfig
@@ -788,7 +781,6 @@ object GameTrainingDriverIntegTest {
     ParamMap
       .empty
       .put(GameTrainingDriver.inputDataDirectories, Set(trainPath))
-//      .put(GameTrainingDriver.validationDataDirectories, Set(testPath))
       .put(GameTrainingDriver.featureBagsDirectory, featurePath)
       .put(GameTrainingDriver.trainingTask, TaskType.LINEAR_REGRESSION)
       .put(GameTrainingDriver.coordinateDescentIterations, numIterations)

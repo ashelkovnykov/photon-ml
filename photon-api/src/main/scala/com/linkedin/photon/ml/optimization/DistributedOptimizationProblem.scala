@@ -191,13 +191,10 @@ object DistributedOptimizationProblem {
       normalizationContext: BroadcastWrapper[NormalizationContext],
       varianceComputation: VarianceComputationType): DistributedOptimizationProblem[Function] = {
 
-    val optimizerConfig = configuration.optimizerConfig
-    val regularizationContext = configuration.regularizationContext
-    val regularizationWeight = configuration.regularizationWeight
     // Will result in a runtime error if created Optimizer cannot be cast to an Optimizer that can handle the given
     // objective function.
     val optimizer = OptimizerFactory
-      .build(optimizerConfig, normalizationContext, regularizationContext, regularizationWeight)
+      .build(configuration, normalizationContext)
       .asInstanceOf[Optimizer[Function]]
 
     new DistributedOptimizationProblem(
@@ -205,7 +202,7 @@ object DistributedOptimizationProblem {
       objectiveFunction,
       samplerOption,
       glmConstructor,
-      regularizationContext,
+      configuration.regularizationContext,
       varianceComputation)
   }
 }

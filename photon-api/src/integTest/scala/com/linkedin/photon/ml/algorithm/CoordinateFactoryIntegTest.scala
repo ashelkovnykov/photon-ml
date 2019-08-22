@@ -25,7 +25,7 @@ import com.linkedin.photon.ml.data.{FixedEffectDataset, LocalDataset, RandomEffe
 import com.linkedin.photon.ml.function.{DistributedObjectiveFunction, ObjectiveFunctionHelper, SingleNodeObjectiveFunction}
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.optimization.game.{FixedEffectOptimizationConfiguration, RandomEffectOptimizationConfiguration}
-import com.linkedin.photon.ml.optimization.{OptimizerConfig, OptimizerType, SingleNodeOptimizationProblem, VarianceComputationType}
+import com.linkedin.photon.ml.optimization.{OptimizerType, SingleNodeOptimizationProblem, VarianceComputationType}
 import com.linkedin.photon.ml.projector.LinearSubspaceProjector
 import com.linkedin.photon.ml.sampling.DownSamplerHelper
 import com.linkedin.photon.ml.supervised.classification.LogisticRegressionModel
@@ -45,7 +45,7 @@ class CoordinateFactoryIntegTest extends SparkTestUtils {
   def testBuildFixedEffectCoordinate(): Unit = sparkTest("testBuildFixedEffectCoordinate") {
 
     val mockDataset = mock(classOf[FixedEffectDataset])
-    val optimizationConfiguration = FixedEffectOptimizationConfiguration(OPTIMIZER_CONFIG)
+    val optimizationConfiguration = FixedEffectOptimizationConfiguration(OPTIMIZER_TYPE, MAX_ITER, TOLERANCE)
 
     doReturn(sc).when(mockDataset).sparkContext
 
@@ -76,7 +76,7 @@ class CoordinateFactoryIntegTest extends SparkTestUtils {
     val mockDataRDD = mock(classOf[RDD[(REId, LocalDataset)]])
     val mockProjectorsRDD = mock(classOf[RDD[(REId, LinearSubspaceProjector)]])
     val mockProblemsRDD = mock(classOf[RDD[(REId, SingleNodeOptimizationProblem[SingleNodeObjectiveFunction])]])
-    val optimizationConfiguration = RandomEffectOptimizationConfiguration(OPTIMIZER_CONFIG)
+    val optimizationConfiguration = RandomEffectOptimizationConfiguration(OPTIMIZER_TYPE, MAX_ITER, TOLERANCE)
 
     doReturn(sc).when(mockDataset).sparkContext
     doReturn(mockDataRDD).when(mockDataset).activeData
@@ -112,7 +112,7 @@ class CoordinateFactoryIntegTest extends SparkTestUtils {
   def testBuildInvalidCoordinate(): Unit = sparkTest("testBuildInvalidCoordinate") {
 
     val mockDataset = mock(classOf[FixedEffectDataset])
-    val optimizationConfiguration = RandomEffectOptimizationConfiguration(OPTIMIZER_CONFIG)
+    val optimizationConfiguration = RandomEffectOptimizationConfiguration(OPTIMIZER_TYPE, MAX_ITER, TOLERANCE)
 
     CoordinateFactory.build(
       mockDataset,
@@ -134,7 +134,6 @@ object CoordinateFactoryIntegTest {
   private val TREE_AGGREGATE_DEPTH = 1
   private val VARIANCE_COMPUTATION_TYPE = VarianceComputationType.NONE
 
-  private val OPTIMIZER_CONFIG = OptimizerConfig(OPTIMIZER_TYPE, MAX_ITER, TOLERANCE)
   private val MOCK_NORMALIZATION = mock(classOf[NormalizationContext])
   private val GLM_CONSTRUCTOR = LogisticRegressionModel.apply _
   private val LOSS_FUNCTION_FACTORY = ObjectiveFunctionHelper.buildFactory(TRAINING_TASK, TREE_AGGREGATE_DEPTH)

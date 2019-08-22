@@ -111,8 +111,11 @@ object ModelTraining extends Logging {
       treeAggregateDepth: Int,
       useWarmStart: Boolean): List[(Double, GeneralizedLinearModel, OptimizationStatesTracker)] = {
 
-    val optimizerConfig = OptimizerConfig(optimizerType, maxNumIter, tolerance, constraintMap)
-    val optimizationConfig = FixedEffectOptimizationConfiguration(optimizerConfig, regularizationContext)
+    val optimizationConfig = FixedEffectOptimizationConfiguration(
+      optimizerType,
+      maxNumIter,
+      tolerance,
+      regularizationContext)
     // Initialize the broadcast normalization context
     val broadcastNormalizationContext = PhotonBroadcast(trainingData.sparkContext.broadcast(normalizationContext))
 

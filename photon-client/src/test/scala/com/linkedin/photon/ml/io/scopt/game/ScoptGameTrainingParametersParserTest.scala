@@ -86,13 +86,11 @@ class ScoptGameTrainingParametersParserTest {
     val fixedEffectOptimizerType = OptimizerType.LBFGS
     val fixedEffectMaxIter = 8
     val fixedEffectTolerance = 9.0
-    val fixedEffectOptimizerConfig = OptimizerConfig(
-      fixedEffectOptimizerType,
-      fixedEffectMaxIter,
-      fixedEffectTolerance)
     val fixedEffectDownSamplingRate = 0.1
     val fixedEffectOptimizationConfiguration = FixedEffectOptimizationConfiguration(
-      fixedEffectOptimizerConfig,
+      fixedEffectOptimizerType,
+      fixedEffectMaxIter,
+      fixedEffectTolerance,
       downSamplingRate = fixedEffectDownSamplingRate)
     val fixedEffectCoordinateConfiguration = FixedEffectCoordinateConfiguration(
       fixedEffectDataConfiguration,
@@ -113,15 +111,13 @@ class ScoptGameTrainingParametersParserTest {
     val randomEffectOptimizerType = OptimizerType.TRON
     val randomEffectMaxIter = 14
     val randomEffectTolerance = 15.0
-    val randomEffectOptimizerConfig = OptimizerConfig(
-      randomEffectOptimizerType,
-      randomEffectMaxIter,
-      randomEffectTolerance)
     val randomEffectRegularizationContext = L1RegularizationContext
     val randomEffectRegularizationWeightRange = DoubleRange(1.0, 100.0)
     val randomEffectElasticNetParamRange = DoubleRange(0.0, 0.5)
     val randomEffectOptimizationConfiguration = RandomEffectOptimizationConfiguration(
-      randomEffectOptimizerConfig,
+      randomEffectOptimizerType,
+      randomEffectMaxIter,
+      randomEffectTolerance,
       randomEffectRegularizationContext,
       regularizationWeightRange = Some(randomEffectRegularizationWeightRange),
       elasticNetParamRange = Some(randomEffectElasticNetParamRange))
@@ -183,8 +179,8 @@ class ScoptGameTrainingParametersParserTest {
 
     //
     // Check coordinate configurations separately. This is done as an alternative to custom hashCode() and equals()
-    // implementations for CoordinateConfiguration, CoordinateDataConfiguration, CoordinateOptimizationConfiguration,
-    // and OptimizerConfig classes (which are otherwise never compared directly against each other).
+    // implementations for CoordinateConfiguration, CoordinateDataConfiguration, and CoordinateOptimizationConfiguration
+    // classes (which are otherwise never compared directly against each other).
     //
 
     val finalCoordinateConfigs = finalParamMap.get(GameTrainingDriver.coordinateConfigurations).get
@@ -197,22 +193,20 @@ class ScoptGameTrainingParametersParserTest {
       finalCoordinateConfigs(fixedEffectCoordinateId).asInstanceOf[FixedEffectCoordinateConfiguration]
     val finalFixedDataCoordinateConfig = finalFixedCoordinateConfig.dataConfiguration
     val finalFixedOptimizationCoordinateConfig = finalFixedCoordinateConfig.optimizationConfiguration
-    val finalFixedOptimizationConfig = finalFixedOptimizationCoordinateConfig.optimizerConfig
     val finalFixedRegularizationWeights = finalFixedCoordinateConfig.regularizationWeights
     val finalRandomCoordinateConfig =
       finalCoordinateConfigs(randomEffectCoordinateId).asInstanceOf[RandomEffectCoordinateConfiguration]
     val finalRandomDataCoordinateConfig = finalRandomCoordinateConfig.dataConfiguration
     val finalRandomOptimizationCoordinateConfig = finalRandomCoordinateConfig.optimizationConfiguration
-    val finalRandomOptimizationConfig = finalRandomOptimizationCoordinateConfig.optimizerConfig
     val finalRandomRegularizationWeights = finalRandomCoordinateConfig.regularizationWeights
 
     // Compare fixed effect configuration
     assertEquals(finalFixedDataCoordinateConfig.featureShardId, featureShard1)
     assertEquals(finalFixedDataCoordinateConfig.minNumPartitions, fixedEffectPartitions)
 
-    assertEquals(finalFixedOptimizationConfig.optimizerType, fixedEffectOptimizerType)
-    assertEquals(finalFixedOptimizationConfig.tolerance, fixedEffectTolerance)
-    assertEquals(finalFixedOptimizationConfig.maximumIterations, fixedEffectMaxIter)
+    assertEquals(finalFixedOptimizationCoordinateConfig.optimizerType, fixedEffectOptimizerType)
+    assertEquals(finalFixedOptimizationCoordinateConfig.tolerance, fixedEffectTolerance)
+    assertEquals(finalFixedOptimizationCoordinateConfig.maximumIterations, fixedEffectMaxIter)
     assertEquals(finalFixedOptimizationCoordinateConfig.regularizationContext, NoRegularizationContext)
     assertEquals(finalFixedOptimizationCoordinateConfig.regularizationWeight, 0D)
     assertEquals(finalFixedOptimizationCoordinateConfig.downSamplingRate, fixedEffectDownSamplingRate)
@@ -227,9 +221,9 @@ class ScoptGameTrainingParametersParserTest {
     assertEquals(finalRandomDataCoordinateConfig.numActiveDataPointsUpperBound, randomEffectActiveUpperBound)
     assertEquals(finalRandomDataCoordinateConfig.numFeaturesToSamplesRatioUpperBound, randomEffectFeatureRatio)
 
-    assertEquals(finalRandomOptimizationConfig.optimizerType, randomEffectOptimizerType)
-    assertEquals(finalRandomOptimizationConfig.tolerance, randomEffectTolerance)
-    assertEquals(finalRandomOptimizationConfig.maximumIterations, randomEffectMaxIter)
+    assertEquals(finalRandomOptimizationCoordinateConfig.optimizerType, randomEffectOptimizerType)
+    assertEquals(finalRandomOptimizationCoordinateConfig.tolerance, randomEffectTolerance)
+    assertEquals(finalRandomOptimizationCoordinateConfig.maximumIterations, randomEffectMaxIter)
     assertEquals(finalRandomOptimizationCoordinateConfig.regularizationContext, randomEffectRegularizationContext)
     assertEquals(finalRandomOptimizationCoordinateConfig.regularizationWeight, 0D)
     assertEquals(

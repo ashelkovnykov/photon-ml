@@ -200,7 +200,10 @@ class NormalizationContextIntegTest extends SparkTestUtils with GameTestUtils {
     val normalizationBroadcast = PhotonNonBroadcast(normalizationContext)
     val noNormalizationBroadcast = PhotonNonBroadcast(NoNormalization())
 
-    val configuration = FixedEffectOptimizationConfiguration(generateOptimizerConfig())
+    val configuration = FixedEffectOptimizationConfiguration(
+      OptimizerType.LBFGS,
+      maximumIterations = 100,
+      tolerance = 1E-5)
 
     val testData = for (optimizerType <- OptimizerType.values;
                         taskType<- TaskType.values.filterNot(_ == TaskType.SMOOTHED_HINGE_LOSS_LINEAR_SVM)) yield {

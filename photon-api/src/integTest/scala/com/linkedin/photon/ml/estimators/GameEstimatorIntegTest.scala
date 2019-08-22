@@ -36,7 +36,7 @@ import com.linkedin.photon.ml.model.{FixedEffectModel, GameModel}
 import com.linkedin.photon.ml.normalization.NormalizationType.NormalizationType
 import com.linkedin.photon.ml.normalization.{NormalizationContext, NormalizationType}
 import com.linkedin.photon.ml.optimization.game.FixedEffectOptimizationConfiguration
-import com.linkedin.photon.ml.optimization.{L2RegularizationContext, OptimizerConfig, OptimizerType}
+import com.linkedin.photon.ml.optimization.{L2RegularizationContext, OptimizerType}
 import com.linkedin.photon.ml.stat.FeatureDataStatistics
 import com.linkedin.photon.ml.test.{CommonTestUtils, SparkTestUtils, TestTemplateWithTmpDir}
 import com.linkedin.photon.ml.util._
@@ -73,13 +73,11 @@ class GameEstimatorIntegTest extends SparkTestUtils with TestTemplateWithTmpDir 
     val trainingDatasets = Map((coordinateId, fixedEffectDataset))
 
     val fixedEffectOptConfig = FixedEffectOptimizationConfiguration(
-      OptimizerConfig(
-        optimizerType = OptimizerType.LBFGS,
-        maximumIterations = 100,
-        tolerance = 1e-11,
-        constraintMap = None),
+      OptimizerType.LBFGS,
+      100,
+      1e-11,
       L2RegularizationContext,
-      regularizationWeight = 0.3)
+      0.3)
     val modelConfig: GameEstimator.GameOptimizationConfiguration = Map((coordinateId, fixedEffectOptConfig))
     val logger = createLogger("SimpleTest")
 
@@ -142,12 +140,7 @@ class GameEstimatorIntegTest extends SparkTestUtils with TestTemplateWithTmpDir 
       val fixedEffectDataset = new FixedEffectDataset(trainingDataRdd, featureShardId)
       val trainingDatasets = Map((coordinateId, fixedEffectDataset))
 
-      val fixedEffectOptConfig = FixedEffectOptimizationConfiguration(
-        OptimizerConfig(
-          optimizerType = OptimizerType.LBFGS,
-          maximumIterations = 100,
-          tolerance = 1e-11,
-          constraintMap = None))
+      val fixedEffectOptConfig = FixedEffectOptimizationConfiguration(OptimizerType.LBFGS, 100, 1e-11)
       val modelConfig: GameEstimator.GameOptimizationConfiguration = Map((coordinateId, fixedEffectOptConfig))
 
       val statisticalSummary = FeatureDataStatistics(trainingDataRdd.values, Some(labeledPoints.head.features.length))

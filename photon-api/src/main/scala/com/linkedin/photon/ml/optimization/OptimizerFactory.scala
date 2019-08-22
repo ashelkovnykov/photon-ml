@@ -16,6 +16,7 @@ package com.linkedin.photon.ml.optimization
 
 import com.linkedin.photon.ml.function.TwiceDiffFunction
 import com.linkedin.photon.ml.normalization.NormalizationContext
+import com.linkedin.photon.ml.optimization.game.GLMOptimizationConfiguration
 import com.linkedin.photon.ml.util.BroadcastWrapper
 
 /**
@@ -24,43 +25,39 @@ import com.linkedin.photon.ml.util.BroadcastWrapper
  * optimizers: mixing incompatible optimizers and objective functions will result in a runtime error.
  */
 protected[ml] object OptimizerFactory {
+
   /**
    * Creates an optimizer.
    *
-   * @param config The Optimizer configuration
+   * @param configuration The optimization problem configuration
    * @param normalizationContext The normalization context
-   * @param regularizationContext The regularization context
-   * @param regularizationWeight The regularization weight
    * @return A new [[Optimizer]]
    */
   def build(
-      config: OptimizerConfig,
-      normalizationContext: BroadcastWrapper[NormalizationContext],
-      regularizationContext: RegularizationContext,
-      regularizationWeight: Double = 0): Optimizer[TwiceDiffFunction] =
+      configuration: GLMOptimizationConfiguration,
+      normalizationContext: BroadcastWrapper[NormalizationContext]): Optimizer[TwiceDiffFunction] = {
 
-    (config.optimizerType, regularizationContext.regularizationType) match {
+    val GLMOptimizationConfiguration(optType, maxIter, tolerance, regContext, regWeight) = configuration
+
+    (optType, regContext.regularizationType) match {
       case (OptimizerType.LBFGS, RegularizationType.L1 | RegularizationType.ELASTIC_NET) =>
         new OWLQN(
-          l1RegWeight = regularizationContext.getL1RegularizationWeight(regularizationWeight),
+          l1RegWeight = regContext.getL1RegularizationWeight(regWeight),
           normalizationContext = normalizationContext,
-          tolerance = config.tolerance,
-          maxNumIterations = config.maximumIterations,
-          constraintMap = config.constraintMap)
+          tolerance = tolerance,
+          maxNumIterations = maxIter)
 
       case (OptimizerType.LBFGS, RegularizationType.L2 | RegularizationType.NONE) =>
         new LBFGS(
           normalizationContext = normalizationContext,
-          tolerance = config.tolerance,
-          maxNumIterations = config.maximumIterations,
-          constraintMap = config.constraintMap)
+          tolerance = tolerance,
+          maxNumIterations = maxIter)
 
       case (OptimizerType.TRON, RegularizationType.L2 | RegularizationType.NONE) =>
         new TRON(
           normalizationContext = normalizationContext,
-          tolerance = config.tolerance,
-          maxNumIterations = config.maximumIterations,
-          constraintMap = config.constraintMap)
+          tolerance = tolerance,
+          maxNumIterations = maxIter)
 
       case (OptimizerType.TRON, RegularizationType.L1 | RegularizationType.ELASTIC_NET) =>
         throw new IllegalArgumentException("TRON optimizer incompatible with L1 regularization")
@@ -68,7 +65,8 @@ protected[ml] object OptimizerFactory {
       case (OptimizerType.LBFGS | OptimizerType.TRON, regType) =>
         throw new IllegalArgumentException(s"Incompatible regularization selected: $regType")
 
-      case (optType, _) =>
-        throw new IllegalArgumentException(s"Incompatible optimizer selected: $optType")
+      case (unknownOptType, _) =>
+        throw new IllegalArgumentException(s"Incompatible optimizer selected: $unknownOptType")
     }
+  }
 }

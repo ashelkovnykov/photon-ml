@@ -458,16 +458,22 @@ object ModelProcessingUtilsIntegTest {
   private val GAME_OPTIMIZATION_CONFIGURATION: GameEstimator.GameOptimizationConfiguration = Map(
     (FIXED_SHARD_NAME,
       FixedEffectOptimizationConfiguration(
-        OptimizerConfig(OptimizerType.TRON, 10, 1e-1, constraintMap = None),
+        OptimizerType.TRON,
+        10,
+        1e-1,
         NoRegularizationContext)),
     (RE1_SHARD_NAME,
       RandomEffectOptimizationConfiguration(
-        OptimizerConfig(OptimizerType.LBFGS, 20, 1e-2, constraintMap = None),
+        OptimizerType.LBFGS,
+        20,
+        1e-2,
         L1RegularizationContext,
         regularizationWeight = 1D)),
     (RE2_SHARD_NAME,
       RandomEffectOptimizationConfiguration(
-        OptimizerConfig(OptimizerType.TRON, 30, 1e-3, constraintMap = None),
+        OptimizerType.TRON,
+        30,
+        1e-3,
         L2RegularizationContext,
         regularizationWeight = 2D)))
 

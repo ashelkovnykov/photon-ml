@@ -28,7 +28,6 @@ import com.linkedin.photon.ml.data._
 import com.linkedin.photon.ml.function.glm.{DistributedGLMLossFunction, LogisticLossFunction, SingleNodeGLMLossFunction}
 import com.linkedin.photon.ml.model.{Coefficients, FixedEffectModel, RandomEffectModel}
 import com.linkedin.photon.ml.normalization.NoNormalization
-import com.linkedin.photon.ml.optimization.OptimizerType.OptimizerType
 import com.linkedin.photon.ml.optimization._
 import com.linkedin.photon.ml.optimization.game.{FixedEffectOptimizationConfiguration, RandomEffectOptimizationConfiguration, RandomEffectOptimizationProblem}
 import com.linkedin.photon.ml.projector.LinearSubspaceProjector
@@ -85,20 +84,6 @@ trait GameTestUtils extends SparkTestUtils {
         LabeledPoint(0.0, DenseVector(0.7006904841584055, -0.5607635619919824)))))
 
   /**
-   * Generates an optimizer configuration.
-   *
-   * @param optimizer The optimizer type
-   * @param maxIterations The upper limit on the number of optimization iterations to perform
-   * @param tolerance The relative tolerance limit for optimization
-   * @return A newly generated [[OptimizerConfig]]
-   */
-  def generateOptimizerConfig(
-      optimizer: OptimizerType = OptimizerType.LBFGS,
-      maxIterations: Int = 80,
-      tolerance: Double = 1e-6): OptimizerConfig =
-    OptimizerConfig(optimizer, maxIterations, tolerance, constraintMap = None)
-
-  /**
    * Generates Photon ML labeled points.
    *
    * @param size The size of the set to of labeled points to generate
@@ -146,7 +131,7 @@ trait GameTestUtils extends SparkTestUtils {
    */
   def generateFixedEffectOptimizationProblem: DistributedOptimizationProblem[DistributedGLMLossFunction] = {
 
-    val configuration = FixedEffectOptimizationConfiguration(generateOptimizerConfig())
+    val configuration = FixedEffectOptimizationConfiguration(OptimizerType.LBFGS, 80, 1e-6)
 
     DistributedOptimizationProblem(
       configuration,
@@ -268,7 +253,7 @@ trait GameTestUtils extends SparkTestUtils {
   def generateRandomEffectOptimizationProblem(
       dataset: RandomEffectDataset): RandomEffectOptimizationProblem[SingleNodeGLMLossFunction] = {
 
-    val configuration = RandomEffectOptimizationConfiguration(generateOptimizerConfig())
+    val configuration = RandomEffectOptimizationConfiguration(OptimizerType.LBFGS, 80, 1e-6)
     val normalizationBroadcast = sc.broadcast(NoNormalization())
     val randomEffectOptimizationProblems = dataset
       .activeData

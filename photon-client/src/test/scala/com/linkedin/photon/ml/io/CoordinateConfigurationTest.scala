@@ -20,12 +20,14 @@ import org.testng.annotations.Test
 
 import com.linkedin.photon.ml.data.{FixedEffectDataConfiguration, RandomEffectDataConfiguration}
 import com.linkedin.photon.ml.optimization.game.{FixedEffectOptimizationConfiguration, RandomEffectOptimizationConfiguration}
-import com.linkedin.photon.ml.optimization.{L2RegularizationContext, NoRegularizationContext, OptimizerConfig, RegularizationContext}
+import com.linkedin.photon.ml.optimization.{L2RegularizationContext, NoRegularizationContext, OptimizerType, RegularizationContext}
 
 /**
  * Unit tests for the derived classes of [[CoordinateConfiguration]].
  */
 class CoordinateConfigurationTest {
+
+  import CoordinateConfigurationTest._
 
   /**
    * Test that the [[FixedEffectCoordinateConfiguration]] can correctly expand its
@@ -35,12 +37,15 @@ class CoordinateConfigurationTest {
   def testExpandFixedEffect(): Unit = {
 
     val mockDataConfig = mock(classOf[FixedEffectDataConfiguration])
-    val mockOptimizerConfig = mock(classOf[OptimizerConfig])
     val mockRegularizationContext = mock(classOf[RegularizationContext])
 
     val listRegWeights = Seq(9D, 8D, 7D, 6D, 5D, 4D, 3D, 2D, 1D)
 
-    val baseOptConfig = FixedEffectOptimizationConfiguration(mockOptimizerConfig, mockRegularizationContext)
+    val baseOptConfig = FixedEffectOptimizationConfiguration(
+      OPTIMIZER_TYPE,
+      MAX_ITERATIONS,
+      TOLERANCE,
+      mockRegularizationContext)
     val config = FixedEffectCoordinateConfiguration(mockDataConfig, baseOptConfig, listRegWeights.toSet)
     val configsList = config.expandOptimizationConfigurations
 
@@ -61,12 +66,19 @@ class CoordinateConfigurationTest {
   def testConstructorFixedEffect(): Unit = {
 
     val mockDataConfig = mock(classOf[FixedEffectDataConfiguration])
-    val mockOptimizerConfig = mock(classOf[OptimizerConfig])
 
     val regWeights = Seq(3D, 2D, 1D)
 
-    val optConfig1 = FixedEffectOptimizationConfiguration(mockOptimizerConfig, NoRegularizationContext)
-    val optConfig2 = FixedEffectOptimizationConfiguration(mockOptimizerConfig, L2RegularizationContext)
+    val optConfig1 = FixedEffectOptimizationConfiguration(
+      OPTIMIZER_TYPE,
+      MAX_ITERATIONS,
+      TOLERANCE,
+      NoRegularizationContext)
+    val optConfig2 = FixedEffectOptimizationConfiguration(
+      OPTIMIZER_TYPE,
+      MAX_ITERATIONS,
+      TOLERANCE,
+      L2RegularizationContext)
 
     val config1 = FixedEffectCoordinateConfiguration(mockDataConfig, optConfig1, regWeights.toSet)
     val config2 = FixedEffectCoordinateConfiguration(mockDataConfig, optConfig2, regWeights.toSet)
@@ -89,12 +101,15 @@ class CoordinateConfigurationTest {
   def testExpandRandomEffect(): Unit = {
 
     val mockDataConfig = mock(classOf[RandomEffectDataConfiguration])
-    val mockOptimizerConfig = mock(classOf[OptimizerConfig])
     val mockRegularizationContext = mock(classOf[RegularizationContext])
 
     val listRegWeights = Seq(9D, 8D, 7D, 6D, 5D, 4D, 3D, 2D, 1D)
 
-    val baseOptConfig = RandomEffectOptimizationConfiguration(mockOptimizerConfig, mockRegularizationContext)
+    val baseOptConfig = RandomEffectOptimizationConfiguration(
+      OPTIMIZER_TYPE,
+      MAX_ITERATIONS,
+      TOLERANCE,
+      mockRegularizationContext)
     val config = RandomEffectCoordinateConfiguration(mockDataConfig, baseOptConfig, listRegWeights.toSet)
     val configsList = config.expandOptimizationConfigurations
 
@@ -115,12 +130,19 @@ class CoordinateConfigurationTest {
   def testConstructorRandomEffect(): Unit = {
 
     val mockDataConfig = mock(classOf[RandomEffectDataConfiguration])
-    val mockOptimizerConfig = mock(classOf[OptimizerConfig])
 
     val regWeights = Seq(3D, 2D, 1D)
 
-    val optConfig1 = RandomEffectOptimizationConfiguration(mockOptimizerConfig, NoRegularizationContext)
-    val optConfig2 = RandomEffectOptimizationConfiguration(mockOptimizerConfig, L2RegularizationContext)
+    val optConfig1 = RandomEffectOptimizationConfiguration(
+      OPTIMIZER_TYPE,
+      MAX_ITERATIONS,
+      TOLERANCE,
+      NoRegularizationContext)
+    val optConfig2 = RandomEffectOptimizationConfiguration(
+      OPTIMIZER_TYPE,
+      MAX_ITERATIONS,
+      TOLERANCE,
+      L2RegularizationContext)
 
     val config1 = RandomEffectCoordinateConfiguration(mockDataConfig, optConfig1, regWeights.toSet)
     val config2 = RandomEffectCoordinateConfiguration(mockDataConfig, optConfig2, regWeights.toSet)
@@ -134,4 +156,11 @@ class CoordinateConfigurationTest {
         assertEquals(configWeight, origWeight)
       }
   }
+}
+
+object CoordinateConfigurationTest {
+
+  private val OPTIMIZER_TYPE = OptimizerType.LBFGS
+  private val MAX_ITERATIONS = 1
+  private val TOLERANCE = 1D
 }

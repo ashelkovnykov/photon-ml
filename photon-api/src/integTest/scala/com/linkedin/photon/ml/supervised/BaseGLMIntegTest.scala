@@ -84,11 +84,15 @@ class BaseGLMIntegTest extends SparkTestUtils {
   @DataProvider
   def getGeneralizedLinearOptimizationProblems: Array[Array[Object]] = {
     val lbfgsConfig = FixedEffectOptimizationConfiguration(
-      OptimizerConfig(OptimizerType.LBFGS, LBFGS.DEFAULT_MAX_ITER, LBFGS.DEFAULT_TOLERANCE, None),
+      OptimizerType.LBFGS,
+      LBFGS.DEFAULT_MAX_ITER,
+      LBFGS.DEFAULT_TOLERANCE,
       L2RegularizationContext)
-//    val tronConfig = GLMOptimizationConfiguration(
-//      OptimizerConfig(OptimizerType.TRON, TRON.DEFAULT_MAX_ITER, TRON.DEFAULT_TOLERANCE, None),
-//      L2RegularizationContext)
+    val tronConfig = FixedEffectOptimizationConfiguration(
+      OptimizerType.TRON,
+      TRON.DEFAULT_MAX_ITER,
+      TRON.DEFAULT_TOLERANCE,
+      L2RegularizationContext)
 
     val linearRegressionData = generateDatasetIterable(
       drawSampleFromNumericallyBenignDenseFeaturesForLinearRegressionLocal(
@@ -105,15 +109,10 @@ class BaseGLMIntegTest extends SparkTestUtils {
         BaseGLMIntegTest.RANDOM_SEED,
         BaseGLMIntegTest.NUMBER_OF_SAMPLES,
         BaseGLMIntegTest.NUMBER_OF_DIMENSIONS))
-//    val smoothedHingeData = generateDatasetIterable(
-//      drawBalancedSampleFromNumericallyBenignDenseFeaturesForBinaryClassifierLocal(
-//        BaseGLMIntegTest.RANDOM_SEED,
-//        BaseGLMIntegTest.NUMBER_OF_SAMPLES,
-//        BaseGLMIntegTest.NUMBER_OF_DIMENSIONS))
 
     Array(
       Array(
-        "Linear regression, easy problem",
+        "Linear regression, LBFGS",
         (normalizationContext: BroadcastWrapper[NormalizationContext]) =>
           DistributedOptimizationProblem(
             lbfgsConfig,
@@ -128,7 +127,7 @@ class BaseGLMIntegTest extends SparkTestUtils {
           new MaximumDifferenceValidator[LinearRegressionModel](BaseGLMIntegTest.MAXIMUM_ERROR_MAGNITUDE))),
 
       Array(
-        "Poisson regression, easy problem",
+        "Poisson regression, LBFGS",
         (normalizationContext: BroadcastWrapper[NormalizationContext]) =>
           DistributedOptimizationProblem(
             lbfgsConfig,
@@ -140,15 +139,59 @@ class BaseGLMIntegTest extends SparkTestUtils {
         poissonRegressionData,
         new CompositeModelValidator[PoissonRegressionModel](
           new PredictionFiniteValidator,
-          new NonNegativePredictionValidator[PoissonRegressionModel]
-        )
-      ),
+          new NonNegativePredictionValidator[PoissonRegressionModel])),
 
       Array(
-        "Logistic regression, easy problem",
+        "Logistic regression, LBFGS",
         (normalizationContext: BroadcastWrapper[NormalizationContext]) =>
           DistributedOptimizationProblem(
             lbfgsConfig,
+            DistributedGLMLossFunction(lbfgsConfig, LogisticLossFunction, treeAggregateDepth = 1),
+            None,
+            LogisticRegressionModel.apply,
+            normalizationContext,
+            BaseGLMIntegTest.VARIANCE_COMPUTATION_TYPE),
+        logisticRegressionData,
+        new CompositeModelValidator[LogisticRegressionModel](
+          new PredictionFiniteValidator(),
+          new BinaryPredictionValidator[LogisticRegressionModel](),
+          new BinaryClassifierAUCValidator[LogisticRegressionModel](BaseGLMIntegTest.MINIMUM_CLASSIFIER_AUCROC))),
+
+      Array(
+        "Linear regression, TRON",
+        (normalizationContext: BroadcastWrapper[NormalizationContext]) =>
+          DistributedOptimizationProblem(
+            tronConfig,
+            DistributedGLMLossFunction(lbfgsConfig, SquaredLossFunction, treeAggregateDepth = 1),
+            None,
+            LinearRegressionModel.apply,
+            normalizationContext,
+            BaseGLMIntegTest.VARIANCE_COMPUTATION_TYPE),
+        linearRegressionData,
+        new CompositeModelValidator[LinearRegressionModel](
+          new PredictionFiniteValidator(),
+          new MaximumDifferenceValidator[LinearRegressionModel](BaseGLMIntegTest.MAXIMUM_ERROR_MAGNITUDE))),
+
+      Array(
+        "Poisson regression, TRON",
+        (normalizationContext: BroadcastWrapper[NormalizationContext]) =>
+          DistributedOptimizationProblem(
+            tronConfig,
+            DistributedGLMLossFunction(lbfgsConfig, PoissonLossFunction, treeAggregateDepth = 1),
+            None,
+            PoissonRegressionModel.apply,
+            normalizationContext,
+            BaseGLMIntegTest.VARIANCE_COMPUTATION_TYPE),
+        poissonRegressionData,
+        new CompositeModelValidator[PoissonRegressionModel](
+          new PredictionFiniteValidator,
+          new NonNegativePredictionValidator[PoissonRegressionModel])),
+
+      Array(
+        "Logistic regression, TRON",
+        (normalizationContext: BroadcastWrapper[NormalizationContext]) =>
+          DistributedOptimizationProblem(
+            tronConfig,
             DistributedGLMLossFunction(lbfgsConfig, LogisticLossFunction, treeAggregateDepth = 1),
             None,
             LogisticRegressionModel.apply,

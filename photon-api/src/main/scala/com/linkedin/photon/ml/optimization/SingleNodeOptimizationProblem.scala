@@ -22,7 +22,7 @@ import com.linkedin.photon.ml.function._
 import com.linkedin.photon.ml.model.Coefficients
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.optimization.VarianceComputationType.VarianceComputationType
-import com.linkedin.photon.ml.optimization.game.GLMOptimizationConfiguration
+import com.linkedin.photon.ml.optimization.game.{GLMOptimizationConfiguration, RandomEffectOptimizationConfiguration}
 import com.linkedin.photon.ml.supervised.model.GeneralizedLinearModel
 import com.linkedin.photon.ml.util.BroadcastWrapper
 import com.linkedin.photon.ml.util.Linalg.choleskyInverse
@@ -118,13 +118,10 @@ object SingleNodeOptimizationProblem {
       normalizationContext: BroadcastWrapper[NormalizationContext],
       varianceComputationType: VarianceComputationType): SingleNodeOptimizationProblem[Function] = {
 
-    val optimizerConfig = configuration.optimizerConfig
-    val regularizationContext = configuration.regularizationContext
-    val regularizationWeight = configuration.regularizationWeight
     // Will result in a runtime error if created Optimizer cannot be cast to an Optimizer that can handle the given
     // objective function.
     val optimizer = OptimizerFactory
-      .build(optimizerConfig, normalizationContext, regularizationContext, regularizationWeight)
+      .build(configuration, normalizationContext)
       .asInstanceOf[Optimizer[Function]]
 
     new SingleNodeOptimizationProblem(

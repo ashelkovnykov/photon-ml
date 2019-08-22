@@ -15,7 +15,6 @@
 package com.linkedin.photon.ml.function.svm
 
 import breeze.linalg.DenseVector
-import org.mockito.Mockito._
 import org.testng.Assert.assertEquals
 import org.testng.annotations.Test
 
@@ -43,7 +42,9 @@ class SingleNodeSmoothedHingeLossFunctionTest {
 
     val randomEffectRegularizationContext = NoRegularizationContext
     val randomEffectOptimizationConfiguration = RandomEffectOptimizationConfiguration(
-      RANDOM_EFFECT_OPTIMIZER_CONFIG,
+      OPTIMIZER_TYPE,
+      MAX_ITERATIONS,
+      TOLERANCE,
       randomEffectRegularizationContext)
     val singleNodeSmoothedHingeLossFunction = SingleNodeSmoothedHingeLossFunction(randomEffectOptimizationConfiguration)
     val value = singleNodeSmoothedHingeLossFunction.value(
@@ -65,7 +66,9 @@ class SingleNodeSmoothedHingeLossFunctionTest {
 
     val randomEffectRegularizationContext = L2RegularizationContext
     val randomEffectOptimizationConfiguration = RandomEffectOptimizationConfiguration(
-      RANDOM_EFFECT_OPTIMIZER_CONFIG,
+      OPTIMIZER_TYPE,
+      MAX_ITERATIONS,
+      TOLERANCE,
       randomEffectRegularizationContext,
       RANDOM_EFFECT_REGULARIZATION_WEIGHT)
     val singleNodeSmoothedHingeLossFunction = SingleNodeSmoothedHingeLossFunction(randomEffectOptimizationConfiguration)
@@ -89,7 +92,9 @@ class SingleNodeSmoothedHingeLossFunctionTest {
 
     val randomEffectRegularizationContext = ElasticNetRegularizationContext(ALPHA)
     val randomEffectOptimizationConfiguration = RandomEffectOptimizationConfiguration(
-      RANDOM_EFFECT_OPTIMIZER_CONFIG,
+      OPTIMIZER_TYPE,
+      MAX_ITERATIONS,
+      TOLERANCE,
       randomEffectRegularizationContext,
       RANDOM_EFFECT_REGULARIZATION_WEIGHT)
     val singleNodeSmoothedHingeLossFunction = SingleNodeSmoothedHingeLossFunction(randomEffectOptimizationConfiguration)
@@ -106,11 +111,13 @@ class SingleNodeSmoothedHingeLossFunctionTest {
 
 object SingleNodeSmoothedHingeLossFunctionTest {
 
-  private val RANDOM_EFFECT_OPTIMIZER_CONFIG = mock(classOf[OptimizerConfig])
   private val LABELED_POINT_1 = new LabeledPoint(0, DenseVector(0.0, 1.0))
   private val LABELED_POINT_2 = new LabeledPoint(1, DenseVector(1.0, 0.0))
   private val COEFFICIENT_VECTOR = DenseVector(-2.0, 3.0)
   private val NORMALIZATION_CONTEXT = NoNormalization()
+  private val OPTIMIZER_TYPE = OptimizerType.LBFGS
+  private val MAX_ITERATIONS = 1
+  private val TOLERANCE = 0.1
   private val RANDOM_EFFECT_REGULARIZATION_WEIGHT = 1D
   private val ALPHA = 0.4
   private val EPSILON = 1e-3

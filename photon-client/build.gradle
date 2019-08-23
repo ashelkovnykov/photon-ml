@@ -19,11 +19,12 @@ dependencies {
   compile(project(':photon-avro-schemas'))
   compile(project(":photon-lib$scalaSuffix"))
   compile(project(":photon-api$scalaSuffix"))
+  // This is Scala's option parsing library
+  compile("com.github.scopt:scopt$scalaSuffix:3.5.0")
   compile('joda-time:joda-time:2.7')
   // Stub warnings without this
   compile('org.joda:joda-convert:1.8.1')
-  // This is Scala's option parsing library
-  compile("com.github.scopt:scopt$scalaSuffix:3.5.0")
+  compile("org.scala-lang.modules:scala-pickling$scalaSuffix:0.10.1")
 
   testCompile(project(":photon-test-utils$scalaSuffix"))
   testCompile(project(path: ":photon-lib$scalaSuffix", configuration: 'testOutput'))

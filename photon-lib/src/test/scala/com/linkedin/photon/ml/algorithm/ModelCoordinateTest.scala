@@ -36,9 +36,9 @@ class ModelCoordinateTest {
     val mockModelCoordinate = mock(classOf[ModelCoordinate[MockDataset]])
     val mockDataset = mock(classOf[MockDataset])
 
-    doCallRealMethod().when(mockModelCoordinate).updateCoordinateWithDataset(mockDataset)
+    doCallRealMethod().when(mockModelCoordinate).updateDataset(mockDataset)
 
-    mockModelCoordinate.updateCoordinateWithDataset(mockDataset)
+    mockModelCoordinate.updateDataset(mockDataset)
   }
 
   @DataProvider

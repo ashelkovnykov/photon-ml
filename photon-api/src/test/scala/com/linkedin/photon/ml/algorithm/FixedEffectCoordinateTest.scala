@@ -48,7 +48,7 @@ class FixedEffectCoordinateTest {
     val optimizationProblem = mock(classOf[DistributedOptimizationProblem[DistributedObjectiveFunction]])
 
     val coordinate = new MockFixedEffectCoordinate(dataset, optimizationProblem)
-    val newCoordinate = coordinate.updateCoordinateWithDataset(newDataset)
+    val newCoordinate = coordinate.updateDataset(newDataset)
 
     assertFalse(newCoordinate.publicDataset.eq(dataset))
     assertTrue(newCoordinate.publicDataset.eq(newDataset))
@@ -156,7 +156,7 @@ object FixedEffectCoordinateTest {
       val publicOptimizationProblem: DistributedOptimizationProblem[Objective])
     extends FixedEffectCoordinate[Objective](publicDataset, publicOptimizationProblem) {
 
-    override protected[algorithm] def updateCoordinateWithDataset(
+    override protected[algorithm] def updateDataset(
         newDataset: FixedEffectDataset): MockFixedEffectCoordinate[Objective] =
       new MockFixedEffectCoordinate(newDataset, publicOptimizationProblem)
   }

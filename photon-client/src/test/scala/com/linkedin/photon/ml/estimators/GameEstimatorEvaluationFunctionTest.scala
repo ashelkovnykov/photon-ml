@@ -90,7 +90,7 @@ class GameEstimatorEvaluationFunctionTest {
       log(REGULARIZATION_WEIGHTS(4)),
       log(REGULARIZATION_WEIGHTS(5)),
       REGULARIZATION_ALPHAS(1))
-    val newConfiguration = evaluationFunction.vectorToConfiguration(hypers)
+    val newConfiguration = evaluationFunction.vectorToConfigurations(hypers)
 
     assertEquals(
       newConfiguration("a").asInstanceOf[FixedEffectOptimizationConfiguration].regularizationWeight,
@@ -144,7 +144,7 @@ class GameEstimatorEvaluationFunctionTest {
       MOCK_DATA,
       IS_MAX_OPTIMAL)
 
-    evaluationFunction.vectorToConfiguration(hypers)
+    evaluationFunction.vectorToConfigurations(hypers)
   }
 
   @DataProvider

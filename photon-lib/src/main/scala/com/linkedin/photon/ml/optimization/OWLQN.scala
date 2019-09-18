@@ -37,8 +37,8 @@ import com.linkedin.photon.ml.util.BroadcastWrapper
  * @param constraintMap (Optional) The map of constraints on the feature coefficients
  */
 class OWLQN(
-    l1RegWeight: Double,
     normalizationContext: BroadcastWrapper[NormalizationContext],
+    l1RegWeight: Double = OWLQN.DEFAULT_REG_WEIGHT,
     numCorrections: Int = LBFGS.DEFAULT_NUM_CORRECTIONS,
     tolerance: Double = LBFGS.DEFAULT_TOLERANCE,
     maxNumIterations: Int = LBFGS.DEFAULT_MAX_ITER,
@@ -78,6 +78,11 @@ class OWLQN(
   override protected val breezeOptimizer = new BreezeOWLQN[Int, Vector[Double]](
     maxNumIterations,
     numCorrections,
-    (_: Int) => regularizationWeight,
+    (_: Int) => { this.l1RegularizationWeight },
     tolerance)
+}
+
+object OWLQN {
+
+  val DEFAULT_REG_WEIGHT = 1D
 }

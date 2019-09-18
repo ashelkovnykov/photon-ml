@@ -20,7 +20,7 @@ import com.linkedin.photon.ml.data.LabeledPoint
 import com.linkedin.photon.ml.function._
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.optimization.RegularizationType
-import com.linkedin.photon.ml.optimization.game.GLMOptimizationConfiguration
+import com.linkedin.photon.ml.optimization.game.CoordinateOptimizationConfiguration
 import com.linkedin.photon.ml.util.BroadcastWrapper
 
 /**
@@ -41,7 +41,7 @@ import com.linkedin.photon.ml.util.BroadcastWrapper
  */
 protected[ml] class SingleNodeGLMLossFunction private (singlePointLossFunction: PointwiseLossFunction)
   extends SingleNodeObjectiveFunction
-  with TwiceDiffFunction {
+    with TwiceDiffFunction {
 
   /**
    * Compute the value of the function over the given data for the given model coefficients.
@@ -147,17 +147,14 @@ object SingleNodeGLMLossFunction {
    * @return A new SingleNodeGLMLossFunction
    */
   def apply(
-      configuration: GLMOptimizationConfiguration,
+      configuration: CoordinateOptimizationConfiguration,
       singleLossFunction: PointwiseLossFunction): SingleNodeGLMLossFunction = {
 
     val regularizationContext = configuration.regularizationContext
-    val regularizationWeight = configuration.regularizationWeight
 
     regularizationContext.regularizationType match {
       case RegularizationType.L2 | RegularizationType.ELASTIC_NET =>
-        new SingleNodeGLMLossFunction(singleLossFunction) with L2RegularizationTwiceDiff {
-          l2RegWeight = regularizationContext.getL2RegularizationWeight(regularizationWeight)
-        }
+        new SingleNodeGLMLossFunction(singleLossFunction) with L2RegularizationTwiceDiff
 
       case _ => new SingleNodeGLMLossFunction(singleLossFunction)
     }

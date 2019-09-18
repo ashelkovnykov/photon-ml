@@ -41,9 +41,19 @@ protected[ml] class FixedEffectCoordinate[Objective <: DistributedObjectiveFunct
    * @param dataset The updated dataset
    * @return A new coordinate with the updated dataset
    */
-  override protected[algorithm] def updateCoordinateWithDataset(
-      dataset: FixedEffectDataset): FixedEffectCoordinate[Objective] =
+  override protected[algorithm] def updateDataset(dataset: FixedEffectDataset): FixedEffectCoordinate[Objective] =
     new FixedEffectCoordinate[Objective](dataset, optimizationProblem)
+
+  /**
+   *
+   * @param newRegWeight
+   */
+  override protected[ml] def updateRegularizationWeight(newRegWeight: Double): FixedEffectCoordinate[Objective] = {
+
+    optimizationProblem.updateRegularizationWeight(newRegWeight)
+
+    this
+  }
 
   /**
    * Compute an optimized model (i.e. run the coordinate optimizer) for the current dataset.

@@ -14,6 +14,7 @@
  */
 package com.linkedin.photon.ml.estimators
 
+import scala.collection.mutable
 import scala.language.existentials
 
 import org.apache.commons.cli.MissingArgumentException
@@ -25,22 +26,20 @@ import org.apache.spark.sql.DataFrame
 import org.apache.spark.storage.StorageLevel
 import org.slf4j.Logger
 
-import com.linkedin.photon.ml.TaskType
+import com.linkedin.photon.ml.{CoordinateConfiguration, FixedEffectCoordinateConfiguration, RandomEffectCoordinateConfiguration, TaskType}
 import com.linkedin.photon.ml.TaskType.TaskType
 import com.linkedin.photon.ml.Types.{CoordinateId, FeatureShardId, UniqueSampleId}
 import com.linkedin.photon.ml.algorithm._
 import com.linkedin.photon.ml.data._
 import com.linkedin.photon.ml.evaluation._
-import com.linkedin.photon.ml.function.ObjectiveFunctionHelper
 import com.linkedin.photon.ml.function.glm._
 import com.linkedin.photon.ml.model.{GameModel, RandomEffectModel}
 import com.linkedin.photon.ml.normalization._
-import com.linkedin.photon.ml.optimization.VarianceComputationType
+import com.linkedin.photon.ml.optimization.{DistributedOptimizationProblem, VarianceComputationType}
 import com.linkedin.photon.ml.optimization.VarianceComputationType.VarianceComputationType
-import com.linkedin.photon.ml.optimization.game._
-import com.linkedin.photon.ml.sampling.DownSamplerHelper
+import com.linkedin.photon.ml.sampling.{DownSampler, DownSamplerHelper}
 import com.linkedin.photon.ml.spark.{BroadcastLike, RDDLike}
-import com.linkedin.photon.ml.supervised.classification.{LogisticRegressionModel, SmoothedHingeLossLinearSVMModel}
+import com.linkedin.photon.ml.supervised.classification.LogisticRegressionModel
 import com.linkedin.photon.ml.supervised.regression.{LinearRegressionModel, PoissonRegressionModel}
 import com.linkedin.photon.ml.util._
 
@@ -74,11 +73,11 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
     "input column names",
     "A map of custom column names which replace the default column names of expected fields in the Avro input.")
 
-  val coordinateDataConfigurations: Param[Map[CoordinateId, CoordinateDataConfiguration]] =
-    ParamUtils.createParam[Map[CoordinateId, CoordinateDataConfiguration]](
-      "coordinate data configurations",
-      "A map of coordinate names to data configurations.",
-      PhotonParamValidators.nonEmpty[TraversableOnce, (CoordinateId, CoordinateDataConfiguration)])
+  val coordinateConfigurations: Param[Map[CoordinateId, CoordinateConfiguration]] =
+    ParamUtils.createParam[Map[CoordinateId, CoordinateConfiguration]](
+      "coordinate configurations",
+      "A map of coordinate names to configurations.",
+      PhotonParamValidators.nonEmpty[TraversableOnce, (CoordinateId, CoordinateConfiguration)])
 
   val coordinateUpdateSequence: Param[Seq[CoordinateId]] = ParamUtils.createParam(
     "coordinate update sequence",
@@ -145,8 +144,8 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
 
   def setInputColumnNames(value: InputColumnsNames): this.type = set(inputColumnNames, value)
 
-  def setCoordinateDataConfigurations(value: Map[CoordinateId, CoordinateDataConfiguration]): this.type =
-    set(coordinateDataConfigurations, value)
+  def setCoordinateConfigurations(value: Map[CoordinateId, CoordinateConfiguration]): this.type =
+    set(coordinateConfigurations, value)
 
   def setCoordinateUpdateSequence(value: Seq[CoordinateId]): this.type = set(coordinateUpdateSequence, value)
 
@@ -219,11 +218,12 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
     getRequiredParam(trainingTask)
 
     val updateSequence = getRequiredParam(coordinateUpdateSequence)
-    val dataConfigs = getRequiredParam(coordinateDataConfigurations)
+    val configs = getRequiredParam(coordinateConfigurations)
     val initialModelOpt = get(initialModel)
     val retrainModelCoordsOpt = get(partialRetrainLockedCoordinates)
     val normalizationContextsOpt = get(coordinateNormalizationContexts)
     val ignoreThreshold = getOrDefault(ignoreThresholdForNewModels)
+
     val numUniqueCoordinates = updateSequence.toSet.size
 
     // Cannot have coordinates repeat in the update sequence
@@ -271,12 +271,17 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
         throw new IllegalArgumentException("Partial retraining enabled, but no base model provided.")
     }
 
-    // All coordinates (including locked coordinates) should have a data configuration
-    updateSequence.foreach { coordinate =>
-      require(
-        dataConfigs.contains(coordinate),
-        s"Coordinate $coordinate in the update sequence is missing data configuration.")
-    }
+    // All coordinates in update sequence which are being trained need a configuration
+    val missingCoords = coordinatesToTrain.filterNot(configs.contains)
+    require(
+      missingCoords.isEmpty,
+      s"Coordinates '${missingCoords.mkString(", ")}' are missing from the coordinate configurations.")
+
+    // All coordinates in the update sequence which are not being trained should not have a configuration
+    val badLockedCoords = configs.keys.toSet.intersect(retrainModelCoordsOpt.getOrElse(Set()))
+    require(
+      badLockedCoords.isEmpty,
+      s"Locked coordinates '${badLockedCoords.mkString(", ")}' are present in the optimization configurations.")
 
     // If normalization is enabled, all non-locked coordinates must have a NormalizationContext
     coordinatesToTrain.foreach { coordinate =>
@@ -295,25 +300,20 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
    *
    * @param data The training set
    * @param validationData Optional validation set for per-iteration validation
-   * @param optimizationConfigurations A set of GAME optimization configurations
    * @return A set of (trained GAME model, optional evaluation results, GAME model configuration) tuples, one for each
    *         configuration
    */
-  def fit(
-      data: DataFrame,
-      validationData: Option[DataFrame],
-      optimizationConfigurations: Seq[GameOptimizationConfiguration]): Seq[GameResult] = {
+  def fit(data: DataFrame, validationData: Option[DataFrame]): Seq[GameResult] = {
 
     // Verify valid GameEstimator settings
     validateParams()
 
-    // Verify valid function input
-    validateInput(optimizationConfigurations)
+    val configurations = getRequiredParam(coordinateConfigurations)
 
     // Group additional columns to include in GameDatum
-    val randomEffectIdCols: Set[String] = getRequiredParam(coordinateDataConfigurations)
+    val randomEffectIdCols: Set[String] = configurations
       .flatMap { case (_, config) =>
-        config match {
+        config.dataConfiguration match {
           case reConfig: RandomEffectDataConfiguration => Some(reConfig.randomEffectType)
           case _ => None
         }
@@ -323,9 +323,9 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
     val additionalCols = randomEffectIdCols ++ evaluatorCols
 
     // Gather the names of the feature shards used by the coordinates
-    val featureShards = getRequiredParam(coordinateDataConfigurations)
-      .map { case (_, coordinateDataConfig) =>
-        coordinateDataConfig.featureShardId
+    val featureShards = configurations
+      .map { case (_, config) =>
+        config.dataConfiguration.featureShardId
       }
       .toSet
 
@@ -333,11 +333,14 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
     val gameDataset = Timed("Process training data from raw DataFrame to RDD of samples") {
       prepareGameDataset(data, featureShards, additionalCols)
     }
-    val trainingDatasets = Timed("Prepare training data") {
-      prepareTrainingDatasets(gameDataset)
+    val coordinates = Timed("") {
+      prepareCoordinates(configurations, gameDataset)
+    }
+    val regularizationWeightMaps = Timed("") {
+      prepareRegularizationWeights(configurations)
     }
 
-    // Transform the GAME validation data set into fixed and random effect specific data sets
+    // Transform the GAME validation data set into fixed and random effect specific datasets
     val validationDatasetAndEvaluationSuiteOpt = Timed("Prepare validation data, if any") {
       prepareValidationDatasetAndEvaluators(
         validationData,
@@ -360,74 +363,44 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
         None
       }
 
-      optimizationConfigurations.map { optimizationConfiguration =>
-        val (gameModel, evaluations) = train(
-          optimizationConfiguration,
-          trainingDatasets,
-          coordinateDescent,
-          prevGameModel)
+      regularizationWeightMaps.map { lambdaMap =>
+        val newCoordinates = coordinates.map { case (coordinateId, coordinate) =>
+          val newCoordinate: C forSome { type C <: Coordinate[_] } = if (lambdaMap.contains(coordinateId)) {
+            coordinate.updateRegularizationWeight(lambdaMap(coordinateId))
+          } else {
+            coordinate
+          }
+
+          (coordinateId, newCoordinate)
+        }
+
+        val (gameModel, evaluations) = coordinateDescent.run(newCoordinates, prevGameModel.map(_.toMap))
 
         if (getOrDefault(useWarmStart)) prevGameModel = Some(gameModel)
 
-        (gameModel, optimizationConfiguration, evaluations)
+        (gameModel, lambdaMap, evaluations)
       }
     }
 
-    // Purge the raw GAME data, training data, validation data, and normalization contexts in reverse order of
-    // definition
-    gameDataset.unpersist()
-    trainingDatasets.foreach { case (_, dataset) =>
-      dataset match {
-        case rddLike: RDDLike => rddLike.unpersistRDD()
-        case _ =>
-      }
-      dataset match {
-        case broadcastLike: BroadcastLike => broadcastLike.unpersistBroadcast()
-        case _ =>
-      }
-    }
+    // Purge the raw GAME data, training data, and validation data in reverse order of definition
     validationDatasetAndEvaluationSuiteOpt.map { case (validationDataset, evaluationSuite) =>
       validationDataset.unpersist()
       evaluationSuite.unpersistRDD()
     }
+    coordinates.foreach { case (_, coordinate) =>
+      coordinate match {
+        case rddLike: RDDLike => rddLike.unpersistRDD()
+        case _ =>
+      }
+      coordinate match {
+        case broadcastLike: BroadcastLike => broadcastLike.unpersistBroadcast()
+        case _ =>
+      }
+    }
+    gameDataset.unpersist()
 
     // Return the trained models, along with validation information (if any), and model configuration
     results
-  }
-
-  /**
-   * Verify that the input to which we're fitting a model is valid.
-   *
-   * @param optimizationConfigurations A set of GAME optimization configurations
-   */
-  protected def validateInput(optimizationConfigurations: Seq[GameOptimizationConfiguration]): Unit = {
-
-    val updateSequence = getRequiredParam(coordinateUpdateSequence)
-    val lockedCoordinatesOpt = get(partialRetrainLockedCoordinates)
-    val coordinatesToTrain = lockedCoordinatesOpt
-      .map(lockedCoordinates => updateSequence.filterNot(lockedCoordinates.contains))
-      .getOrElse(updateSequence)
-
-    optimizationConfigurations.foreach { gameOptimizationConfig =>
-
-      val gameOptConfigCoords = gameOptimizationConfig.keySet
-      val missingCoords = coordinatesToTrain.filterNot(gameOptConfigCoords.contains)
-      val badLockedCoords = gameOptConfigCoords.intersect(lockedCoordinatesOpt.getOrElse(Set()))
-
-      // New or retrained coordinates from the update sequence must be present in the optimization configurations
-      require(
-        missingCoords.isEmpty,
-        s"Coordinates '${missingCoords.mkString(", ")}' required by the update sequence are missing from the " +
-          s"optimization configurations.")
-      // Locked coordinates should not be present in the optimization configurations
-      require(
-        badLockedCoords.isEmpty,
-        s"Locked coordinates for partial retraining '${badLockedCoords.mkString(", ")}' are present in the " +
-          s"optimization configurations."
-      )
-
-      // TODO: Should coordinates not used by the update sequence be banned from the optimization configurations?
-    }
   }
 
   /**
@@ -454,38 +427,79 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
       .persist(StorageLevel.DISK_ONLY)
 
   /**
-   * Construct one or more [[Dataset]]s from an [[RDD]] of samples.
    *
-   * @param gameDataset The training data samples
-   * @return A map of coordinate ID to training [[Dataset]]
+   * @param configurations
+   * @param gameDataset
+   * @return
    */
-  protected def prepareTrainingDatasets(
-      gameDataset: RDD[(UniqueSampleId, GameDatum)]): Map[CoordinateId, D forSome { type D <: Dataset[D] }] = {
+  protected def prepareCoordinates(
+      configurations: Map[CoordinateId, CoordinateConfiguration],
+      gameDataset: RDD[(UniqueSampleId, GameDatum)]): Map[CoordinateId, C forSome { type C <: Coordinate[_] }] = {
 
-    val coordinateDataConfigs = getRequiredParam(coordinateDataConfigurations)
+    logger.info("Model configuration:")
+    configurations.foreach { case (coordinateId, coordinateConfig) =>
+      logger.info(s"coordinate '$coordinateId':\n\n$coordinateConfig\n")
+    }
 
-    coordinateDataConfigs.map { case (coordinateId, config) =>
+    val task = getRequiredParam(trainingTask)
+    val normalizationContexts = get(coordinateNormalizationContexts).getOrElse(Map())
+    val varianceType = getOrDefault(varianceComputationType)
+    val treeAggDepth = getOrDefault(treeAggregateDepth)
+    val (glmConstructor, pointwiseLossFunction) = task match {
+      case TaskType.LOGISTIC_REGRESSION => (LogisticRegressionModel.apply _, LogisticLossFunction)
+      case TaskType.LINEAR_REGRESSION => (LinearRegressionModel.apply _, SquaredLossFunction)
+      case TaskType.POISSON_REGRESSION => (PoissonRegressionModel.apply _, PoissonLossFunction)
+      case _ => throw new Exception("Need to specify a valid loss function")
+    }
+    val downSamplerFactory = DownSamplerHelper.buildFactory(task)
+    val lockedCoordinates = get(partialRetrainLockedCoordinates).getOrElse(Set())
 
-      val result = config match {
+    configurations.map { case (coordinateId, config) =>
+      config match {
+        case fixedEffectConfig: FixedEffectCoordinateConfiguration =>
 
-        case feConfig: FixedEffectDataConfiguration =>
+          val fixedEffectOptConfig = fixedEffectConfig.optimizationConfiguration
 
-          val fixedEffectDataset = FixedEffectDataset(gameDataset, feConfig.featureShardId)
+          val fixedEffectDataset = FixedEffectDataset(gameDataset, fixedEffectConfig.dataConfiguration.featureShardId)
             .setName(s"Fixed Effect Dataset: $coordinateId")
             .persistRDD(StorageLevel.DISK_ONLY)
+          val lossFunction = DistributedGLMLossFunction(fixedEffectOptConfig, pointwiseLossFunction, treeAggDepth)
+          val downSamplerOpt = if (DownSampler.isValidDownSamplingRate(fixedEffectOptConfig.downSamplingRate)) {
+            Some(downSamplerFactory(fixedEffectOptConfig.downSamplingRate))
+          } else {
+            None
+          }
+          val normalizationContextBroadcast =
+            PhotonBroadcast(gameDataset.sparkContext.broadcast(normalizationContexts(coordinateId)))
 
-          if (logger.isDebugEnabled) {
-            // Eval this only in debug mode, because the call to "toSummaryString" can be very expensive
-            logger.debug(
-              s"Summary of fixed effect dataset with coordinate ID '$coordinateId':\n" +
-                s"${fixedEffectDataset.toSummaryString}")
+          val fixedEffectCoordinate = if (lockedCoordinates.contains(coordinateId)) {
+            new FixedEffectModelCoordinate(fixedEffectDataset)
+          } else {
+            new FixedEffectCoordinate(
+              fixedEffectDataset,
+              DistributedOptimizationProblem(
+                fixedEffectOptConfig,
+                lossFunction,
+                downSamplerOpt,
+                glmConstructor,
+                normalizationContextBroadcast,
+                varianceType))
           }
 
-          (coordinateId, fixedEffectDataset)
+          // Eval this only in debug mode, because the "toSummaryString" call can be very expensive
+          if (logger.isDebugEnabled) {
+            logger.debug(
+              s"Summary of fixed effect dataset for '$coordinateId':\n\n${fixedEffectDataset.toSummaryString}\n")
+          }
 
-        case reConfig: RandomEffectDataConfiguration =>
+          (coordinateId, fixedEffectCoordinate)
 
-          val rePartitioner = RandomEffectDatasetPartitioner.fromGameDataset(gameDataset, reConfig)
+        case randomEffectConfig: RandomEffectCoordinateConfiguration =>
+
+          val randomEffectDataConfig = randomEffectConfig.dataConfiguration
+          val randomEffectOptConfig = randomEffectConfig.optimizationConfiguration
+
+          val rePartitioner = RandomEffectDatasetPartitioner.fromGameDataset(gameDataset, randomEffectDataConfig)
           val existingModelKeysRddOpt = if (getOrDefault(ignoreThresholdForNewModels)) {
             getRequiredParam(initialModel).getModel(coordinateId).map {
               case rem: RandomEffectModel =>
@@ -498,14 +512,26 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
           } else {
             None
           }
-
           val randomEffectDataset = RandomEffectDataset(
             gameDataset,
-            reConfig,
+            randomEffectDataConfig,
             rePartitioner,
             existingModelKeysRddOpt,
             StorageLevel.DISK_ONLY)
           randomEffectDataset.setName(s"Random Effect Data Set: $coordinateId")
+          val lossFunction = SingleNodeGLMLossFunction(randomEffectOptConfig, pointwiseLossFunction)
+
+          val randomEffectCoordinate = if (lockedCoordinates.contains(coordinateId)) {
+            new RandomEffectModelCoordinate(randomEffectDataset)
+          } else {
+            RandomEffectCoordinate(
+              randomEffectDataset,
+              randomEffectOptConfig,
+              lossFunction,
+              glmConstructor,
+              normalizationContexts(coordinateId),
+              varianceType)
+          }
 
           if (logger.isDebugEnabled) {
             // Eval this only in debug mode, because the call to "toSummaryString" can be very expensive
@@ -514,12 +540,28 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
                 s"${randomEffectDataset.toSummaryString}\n")
           }
 
-          (coordinateId, randomEffectDataset)
+          (coordinateId, randomEffectCoordinate)
       }
-
-      result.asInstanceOf[(CoordinateId, D forSome { type D <: Dataset[D] })]
     }
   }
+
+  protected def prepareRegularizationWeights(
+      configurations: Map[CoordinateId, CoordinateConfiguration]): Seq[Map[CoordinateId, Double]] =
+
+    configurations.foldLeft(Seq(Map[CoordinateId, Double]())){ case (abcdefg, coordinateConfig) =>
+
+      val result = mutable.Seq[Map[CoordinateId, Double]]()
+      val coordinateId = coordinateConfig._1
+      val regularizationWeights = coordinateConfig._2.regularizationWeights
+
+      abcdefg.foreach { lambdaMap =>
+        regularizationWeights.foreach { lambda =>
+          result ++ (lambdaMap + (coordinateId -> lambda))
+        }
+      }
+
+      result.toSeq
+    }
 
   /**
    * Optionally construct an [[RDD]] of validation data samples, and an [[EvaluationSuite]] to compute evaluation metrics
@@ -569,18 +611,7 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
     }
     val evaluators = get(validationEvaluators)
       .map(_.map(EvaluatorFactory.buildEvaluator(_, gameDataset)))
-      .getOrElse {
-        // Get default evaluators given the task type
-        val taskType = getRequiredParam(trainingTask)
-        val defaultEvaluator = taskType match {
-          case TaskType.LOGISTIC_REGRESSION | TaskType.SMOOTHED_HINGE_LOSS_LINEAR_SVM => AreaUnderROCCurveEvaluator
-          case TaskType.LINEAR_REGRESSION => RMSEEvaluator
-          case TaskType.POISSON_REGRESSION => PoissonLossEvaluator
-          case _ => throw new UnsupportedOperationException(s"$taskType is not a valid GAME training task")
-        }
-
-        Seq(defaultEvaluator)
-      }
+      .getOrElse(Seq(getDefaultEvaluator(getRequiredParam(trainingTask))))
     val evaluationSuite = EvaluationSuite(evaluators, validatingLabelsAndOffsetsAndWeights)
       .setName(s"Evaluation: validation data labels, offsets, and weights")
       .persistRDD(StorageLevel.MEMORY_AND_DISK)
@@ -601,88 +632,6 @@ class GameEstimator(val sc: SparkContext, implicit val logger: Logger) extends P
 
     evaluationSuite
   }
-
-  /**
-   * Fit a GAME model with the given configuration to the given training data.
-   *
-   * The configuration is used to define one or more 'coordinates' of various types (i.e. fixed effect, random effect,
-   * matrix factorization) which together for the complete mixed effect optimization problem. The coordinates are
-   * updated in a given order, a given number of times. For optimum performance, the update order should start
-   * with the most general 'coordinates' and end with the least general - each successive update learning the residuals
-   * of the previous 'coordinates'.
-   *
-   * @param configuration The configuration for the GAME optimization problem
-   * @param trainingDatasets The training datasets for each coordinate of the GAME optimization problem
-   * @param coordinateDescent The coordinate descent driver
-   * @param initialModelOpt An optional existing GAME model who's components should be used to warm-start training
-   * @return A trained GAME model
-   */
-  protected def train(
-      configuration: GameOptimizationConfiguration,
-      trainingDatasets: Map[CoordinateId, D forSome { type D <: Dataset[D] }],
-      coordinateDescent: CoordinateDescent,
-      initialModelOpt: Option[GameModel] = None): (GameModel, Option[EvaluationResults]) = Timed(s"Train model:") {
-
-    logger.info("Model configuration:")
-    configuration.foreach { case (coordinateId, coordinateConfig) =>
-      logger.info(s"coordinate '$coordinateId':\n$coordinateConfig")
-    }
-
-    val task = getRequiredParam(trainingTask)
-    val updateSequence = getRequiredParam(coordinateUpdateSequence)
-    val normalizationContexts = get(coordinateNormalizationContexts).getOrElse(Map())
-    val variance = getOrDefault(varianceComputationType)
-    val lossFunctionFactory = ObjectiveFunctionHelper.buildFactory(task, getOrDefault(treeAggregateDepth))
-    val glmConstructor = task match {
-      case TaskType.LOGISTIC_REGRESSION => LogisticRegressionModel.apply _
-      case TaskType.LINEAR_REGRESSION => LinearRegressionModel.apply _
-      case TaskType.POISSON_REGRESSION => PoissonRegressionModel.apply _
-      case TaskType.SMOOTHED_HINGE_LOSS_LINEAR_SVM => SmoothedHingeLossLinearSVMModel.apply _
-      case _ => throw new Exception("Need to specify a valid loss function")
-    }
-    val downSamplerFactory = DownSamplerHelper.buildFactory(task)
-    val lockedCoordinates = get(partialRetrainLockedCoordinates).getOrElse(Set())
-
-    // Create the optimization coordinates for each component model
-    val coordinates: Map[CoordinateId, C forSome { type C <: Coordinate[_] }] =
-      updateSequence
-        .map { coordinateId =>
-          val coordinate: C forSome { type C <: Coordinate[_] } = if (lockedCoordinates.contains(coordinateId)) {
-            trainingDatasets(coordinateId) match {
-              case feDataset: FixedEffectDataset => new FixedEffectModelCoordinate(feDataset)
-              case reDataset: RandomEffectDataset => new RandomEffectModelCoordinate(reDataset)
-              case dataset => throw new UnsupportedOperationException(s"Unsupported dataset type: ${dataset.getClass}")
-            }
-          } else {
-            CoordinateFactory.build(
-              trainingDatasets(coordinateId),
-              configuration(coordinateId),
-              lossFunctionFactory,
-              glmConstructor,
-              downSamplerFactory,
-              normalizationContexts.getOrElse(coordinateId, NoNormalization()),
-              variance)
-          }
-
-          (coordinateId, coordinate)
-        }
-        .toMap
-
-    val result = coordinateDescent.run(coordinates, initialModelOpt.map(_.toMap))
-
-    coordinates.foreach { case (_, coordinate) =>
-      coordinate match {
-        case rddLike: RDDLike => rddLike.unpersistRDD()
-        case _ =>
-      }
-      coordinate match {
-        case broadcastLike: BroadcastLike => broadcastLike.unpersistBroadcast()
-        case _ =>
-      }
-    }
-
-    result
-  }
 }
 
 object GameEstimator {
@@ -691,8 +640,7 @@ object GameEstimator {
   // Types
   //
 
-  type GameOptimizationConfiguration = Map[CoordinateId, CoordinateOptimizationConfiguration]
-  type GameResult = (GameModel, GameOptimizationConfiguration, Option[EvaluationResults])
+  type GameResult = (GameModel, Map[CoordinateId, Double], Option[EvaluationResults])
 
   //
   // Constants
@@ -701,4 +649,20 @@ object GameEstimator {
   private val GAME_ESTIMATOR_PREFIX = "GameEstimator"
 
   val DEFAULT_TREE_AGGREGATE_DEPTH = 1
+
+  //
+  // Functions
+  //
+
+  /**
+   *
+   * @param task
+   * @return
+   */
+  def getDefaultEvaluator(task: TaskType): Evaluator = task match {
+    case TaskType.LOGISTIC_REGRESSION | TaskType.SMOOTHED_HINGE_LOSS_LINEAR_SVM => AreaUnderROCCurveEvaluator
+    case TaskType.LINEAR_REGRESSION => RMSEEvaluator
+    case TaskType.POISSON_REGRESSION => PoissonLossEvaluator
+    case _ => throw new UnsupportedOperationException(s"$task is not a valid GAME training task")
+  }
 }

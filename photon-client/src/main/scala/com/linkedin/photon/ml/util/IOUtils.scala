@@ -307,34 +307,4 @@ object IOUtils {
 
     result.map(_ => fc.rename(tmpFile, filePath, Options.Rename.OVERWRITE))
   }
-
-  /**
-   * Summarize a [[GameEstimator.GameOptimizationConfiguration]] into a human-readable [[String]].
-   *
-   * @param config A [[GameEstimator.GameOptimizationConfiguration]]
-   * @return The summarized config in human-readable text
-   */
-  def optimizationConfigToString(config: GameEstimator.GameOptimizationConfiguration): String = {
-
-    val builder = new StringBuilder
-
-    config
-      .toSeq
-      .sortBy { case (coordinateId, coordinateConfig) =>
-        val priority = coordinateConfig match {
-          case _: FixedEffectOptimizationConfiguration => 1
-          case _: RandomEffectOptimizationConfiguration => 2
-          case _ =>
-            throw new IllegalArgumentException(
-              s"Unknown optimization configuration for coordinate $coordinateId with type ${coordinateConfig.getClass}")
-        }
-
-        (priority, coordinateId)
-      }
-      .foreach { case (coordinateId, coordinateConfig) =>
-        builder.append(s"$coordinateId:\n$coordinateConfig\n")
-      }
-
-    builder.mkString
-  }
 }

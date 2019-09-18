@@ -28,21 +28,18 @@ import com.linkedin.photon.ml.HyperparameterTuningMode.HyperparameterTuningMode
 import com.linkedin.photon.ml.TaskType.TaskType
 import com.linkedin.photon.ml.Types._
 import com.linkedin.photon.ml.cli.game.GameDriver
-import com.linkedin.photon.ml.data.{DataValidators, FixedEffectDataConfiguration, InputColumnsNames, RandomEffectDataConfiguration}
+import com.linkedin.photon.ml.data.{DataValidators, InputColumnsNames}
 import com.linkedin.photon.ml.data.avro.{AvroDataReader, ModelProcessingUtils}
-import com.linkedin.photon.ml.estimators.GameEstimator.GameOptimizationConfiguration
 import com.linkedin.photon.ml.estimators.{GameEstimator, GameEstimatorEvaluationFunction}
 import com.linkedin.photon.ml.hyperparameter.tuner.HyperparameterTunerFactory
 import com.linkedin.photon.ml.index.IndexMapLoader
-import com.linkedin.photon.ml.io.{CoordinateConfiguration, ModelOutputMode, RandomEffectCoordinateConfiguration}
+import com.linkedin.photon.ml.io.ModelOutputMode
 import com.linkedin.photon.ml.io.ModelOutputMode.ModelOutputMode
 import com.linkedin.photon.ml.io.scopt.game.ScoptGameTrainingParametersParser
-import com.linkedin.photon.ml.model.{DatumScoringModel, FixedEffectModel, RandomEffectModel}
 import com.linkedin.photon.ml.normalization.NormalizationType.NormalizationType
 import com.linkedin.photon.ml.normalization.{NormalizationContext, NormalizationType}
 import com.linkedin.photon.ml.optimization.VarianceComputationType
 import com.linkedin.photon.ml.optimization.VarianceComputationType.VarianceComputationType
-import com.linkedin.photon.ml.optimization.game.CoordinateOptimizationConfiguration
 import com.linkedin.photon.ml.stat.FeatureDataStatistics
 import com.linkedin.photon.ml.util.Implicits._
 import com.linkedin.photon.ml.util.Utils
@@ -320,9 +317,15 @@ object GameTrainingDriver extends GameDriver {
       case _ =>
     }
 
-    // If hyperparameter tuning is enabled, need to specify the number of tuning iterations
+    // If hyperparameter tuning is enabled...
     hyperParameterTuningMode match {
       case HyperparameterTuningMode.BAYESIAN | HyperparameterTuningMode.RANDOM =>
+        // ...need to have validation data
+        require(
+          paramMap.get(validationDataDirectories).isDefined,
+          "Hyperparameter tuning enabled, but validation disabled")
+
+        // ...need to specify the number of tuning iterations
         require(
           paramMap.get(hyperParameterTuningIter).isDefined,
           "Hyperparameter tuning enabled, but number of iterations unspecified.")
@@ -358,12 +361,12 @@ object GameTrainingDriver extends GameDriver {
     val (trainingData, featureIndexMapLoaders) = Timed(s"Read training data") {
       readTrainingData(avroDataReader, featureIndexMapLoadersOpt)
     }
-    val validationData = Timed(s"Read validation data") {
+    val validationDataOpt = Timed(s"Read validation data") {
       readValidationData(avroDataReader, featureIndexMapLoaders)
     }
 
     trainingData.persist(StorageLevel.DISK_ONLY)
-    validationData.map(_.persist(StorageLevel.DISK_ONLY))
+    validationDataOpt.map(_.persist(StorageLevel.DISK_ONLY))
 
     val modelOpt = get(modelInputDirectory).map { modelDir =>
       Timed("Load model for warm-start training") {
@@ -376,33 +379,6 @@ object GameTrainingDriver extends GameDriver {
       }
     }
 
-    val partialRetrainingDataConfigsOpt = get(partialRetrainLockedCoordinates).map { lockedCoordinates =>
-      Timed("Build data configurations for locked coordinates") {
-
-        val modelMap = modelOpt.get.toMap
-
-        require(
-          lockedCoordinates.forall(modelMap.contains),
-          "One or more locked coordinates for partial retraining are missing from the initial model.")
-
-        modelMap
-          .filter { case (coordinateId, _) =>
-            lockedCoordinates.contains(coordinateId)
-          }
-          .mapValues {
-            case fEM: FixedEffectModel =>
-              FixedEffectDataConfiguration(fEM.featureShardId)
-
-            case rEM: RandomEffectModel =>
-              RandomEffectDataConfiguration(rEM.randomEffectType, rEM.featureShardId)
-
-            case other: DatumScoringModel =>
-              throw new IllegalArgumentException(s"Encountered unknown model type '${other.getClass.getName}'")
-          }
-          .map(identity)
-      }
-    }
-
     Timed("Validate data") {
       DataValidators.sanityCheckDataFrameForTraining(
         trainingData,
@@ -411,7 +387,7 @@ object GameTrainingDriver extends GameDriver {
         getOrDefault(inputColumnNames),
         getRequiredParam(featureShardConfigurations).keySet)
 
-      validationData match {
+      validationDataOpt match {
         case Some(x) => DataValidators.sanityCheckDataFrameForTraining(
           x,
           getRequiredParam(trainingTask),
@@ -430,19 +406,12 @@ object GameTrainingDriver extends GameDriver {
       prepareNormalizationContexts(trainingData, featureIndexMapLoaders, featureShardStats)
     }
 
-    val gameOptimizationConfigs = Timed("Prepare optimization configuration(s)") {
-      prepareGameOptConfigs(getRequiredParam(coordinateConfigurations))
-    }
-
     val gameEstimator = Timed("Setup estimator") {
-
-      val coordinateDataConfigs = getRequiredParam(coordinateConfigurations).mapValues(_.dataConfiguration) ++
-        partialRetrainingDataConfigsOpt.getOrElse(Map())
 
       // Set estimator parameters and always use warm start by default
       val estimator = new GameEstimator(sc, logger)
         .setTrainingTask(getRequiredParam(trainingTask))
-        .setCoordinateDataConfigurations(coordinateDataConfigs)
+        .setCoordinateConfigurations(getRequiredParam(coordinateConfigurations))
         .setCoordinateUpdateSequence(getRequiredParam(coordinateUpdateSequence))
         .setCoordinateDescentIterations(getRequiredParam(coordinateDescentIterations))
         .setVarianceComputation(getOrDefault(varianceComputationType))
@@ -460,22 +429,26 @@ object GameTrainingDriver extends GameDriver {
     }
 
     val explicitModels = Timed("Fit models") {
-      gameEstimator.fit(trainingData, validationData, gameOptimizationConfigs)
+      gameEstimator.fit(trainingData, validationDataOpt)
     }
 
-    val tunedModels = Timed("Tune hyperparameters") {
-      // Disable warm start for autotuning
-      gameEstimator.setUseWarmStart(false)
-      runHyperparameterTuning(gameEstimator, trainingData, validationData, explicitModels)
+    val tunedModels = if (getOrDefault(hyperParameterTuning) != HyperparameterTuningMode.NONE) {
+      Timed("Tune hyperparameters") {
+        // Disable warm start for autotuning
+        gameEstimator.setUseWarmStart(false)
+        runHyperparameterTuning(gameEstimator, trainingData, validationDataOpt.get, explicitModels)
+      }
+    } else {
+      Seq()
     }
 
     trainingData.unpersist()
-    validationData.map(_.unpersist())
+    validationDataOpt.map(_.unpersist())
 
     val (outputModels, bestModel) = selectModels(explicitModels, tunedModels)
 
     Timed("Save models") {
-      saveModelToHDFS(featureIndexMapLoaders, outputModels, bestModel)
+      saveModelsToHDFS(featureIndexMapLoaders, outputModels, bestModel)
     }
   }
 
@@ -611,26 +584,6 @@ object GameTrainingDriver extends GameDriver {
     }
 
   /**
-   * Expand each [[CoordinateOptimizationConfiguration]] for its regularization values, then compute all permutations of
-   * the coordinates.
-   *
-   * Ex. Map(a -> (1, 2), b -> (1, 2)) => (Map(a -> 1, b -> 1), Map(a -> 1, b -> 2), Map(a -> 2, b -> 1), Map(a -> 2, b -> 2))
-   *
-   * @param coordinateConfigurations The coordinate definitions
-   * @return A list of [[GameOptimizationConfiguration]], for each of a which a model will be trained.
-   */
-  private def prepareGameOptConfigs(coordinateConfigurations: Map[CoordinateId, CoordinateConfiguration])
-    : Seq[GameOptimizationConfiguration] =
-
-    coordinateConfigurations
-      .mapValues(_.expandOptimizationConfigurations)
-      .foldLeft(Seq[GameOptimizationConfiguration](Map())) { case (partialGameOptConfigs, (coordinateId, coordinateOptConfigs)) =>
-        for (map <- partialGameOptConfigs; newConfig <- coordinateOptConfigs) yield {
-          map + ((coordinateId, newConfig))
-        }
-      }
-
-  /**
    * Run hyperparameter tuning to produce models with automatically-tuned hyperparameters
    *
    * @param estimator The estimator to use for training and validation
@@ -641,35 +594,28 @@ object GameTrainingDriver extends GameDriver {
   private def runHyperparameterTuning(
       estimator: GameEstimator,
       trainingData: DataFrame,
-      validationData: Option[DataFrame],
-      models: Seq[GameEstimator.GameResult]): Seq[GameEstimator.GameResult] =
+      validationData: DataFrame,
+      models: Seq[GameEstimator.GameResult]): Seq[GameEstimator.GameResult] = {
 
-    validationData match {
-      case Some(testData) if getOrDefault(hyperParameterTuning) != HyperparameterTuningMode.NONE =>
+    val isOptMax = get(evaluators)
+      .map(_.head)
+      .getOrElse(GameEstimator.getDefaultEvaluator(getRequiredParam(trainingTask)).evaluatorType)
+      .betterThan(1D, 0D)
+    val evaluationFunction = new GameEstimatorEvaluationFunction(
+      estimator,
+      getRequiredParam(coordinateConfigurations),
+      trainingData,
+      validationData,
+      isOptMax)
 
-        val (_, baseConfig, evaluationResults) = models.head
+    val mode = getOrDefault(hyperParameterTuning)
+    val iteration = getOrDefault(hyperParameterTuningIter)
+    val observations = evaluationFunction.convertObservations(models)
+    val hyperparameterTuner =
+      HyperparameterTunerFactory[GameEstimator.GameResult](getOrDefault(hyperParameterTunerName))
 
-        val iteration = getOrDefault(hyperParameterTuningIter)
-        val dimension = baseConfig.toSeq.length
-        val mode = getOrDefault(hyperParameterTuning)
-
-        val evaluator = evaluationResults.get.primaryEvaluator
-        val isOptMax = evaluator.betterThan(1.0, 0.0)
-        val evaluationFunction = new GameEstimatorEvaluationFunction(
-          estimator,
-          baseConfig,
-          trainingData,
-          testData,
-          isOptMax)
-
-        val observations = evaluationFunction.convertObservations(models)
-
-        val hyperparameterTuner = HyperparameterTunerFactory[GameEstimator.GameResult](getOrDefault(hyperParameterTunerName))
-
-        hyperparameterTuner.search(iteration, dimension, mode, evaluationFunction, observations)
-
-      case _ => Seq()
-    }
+    hyperparameterTuner.search(iteration, evaluationFunction.numParams, mode, evaluationFunction, observations)
+  }
 
   /**
    * Select which models will be output to HDFS.
@@ -728,9 +674,7 @@ object GameTrainingDriver extends GameDriver {
       case Some(gameResult) =>
         val (model, configs, evaluations) = gameResult
 
-        logger.info(s"Best model has ${evaluations.primaryEvaluator.name} score of ${evaluations.primaryEvaluation} " +
-          s"and following config:")
-        logger.info(IOUtils.optimizationConfigToString(configs))
+        logger.info(s"Best model has ${evaluations.primaryEvaluator.name} score of ${evaluations.primaryEvaluation}")
 
         // Computing model summary is slow, we should only do it if necessary
         if (logger.isDebugEnabled) {
@@ -752,7 +696,7 @@ object GameTrainingDriver extends GameDriver {
    * @param models All the models that were producing during training
    * @param bestModel The best model
    */
-  private def saveModelToHDFS(
+  private def saveModelsToHDFS(
       featureShardIdToFeatureMapLoader: Map[String, IndexMapLoader],
       models: Seq[GameEstimator.GameResult],
       bestModel: Option[GameEstimator.GameResult]): Unit =
@@ -765,9 +709,15 @@ object GameTrainingDriver extends GameDriver {
       val task = getRequiredParam(trainingTask)
       val REMFileLimit = get(outputFilesLimit)
 
+      ModelProcessingUtils.saveGameModelMetadata(
+        sc.hadoopConfiguration,
+        rootOutputDir,
+        task,
+        getRequiredParam(coordinateConfigurations))
+
       // Write the best model to HDFS
       bestModel match {
-        case Some((model, modelConfig, _)) =>
+        case Some((model, _, _)) =>
 
           val modelOutputDir = new Path(rootOutputDir, BEST_MODEL_DIR)
 
@@ -777,7 +727,6 @@ object GameTrainingDriver extends GameDriver {
             modelOutputDir,
             model,
             task,
-            modelConfig,
             REMFileLimit,
             featureShardIdToFeatureMapLoader,
             getOrDefault(modelSparsityThreshold))
@@ -800,7 +749,6 @@ object GameTrainingDriver extends GameDriver {
             modelOutputDir,
             model,
             task,
-            modelConfig,
             REMFileLimit,
             featureShardIdToFeatureMapLoader,
             getOrDefault(modelSparsityThreshold))

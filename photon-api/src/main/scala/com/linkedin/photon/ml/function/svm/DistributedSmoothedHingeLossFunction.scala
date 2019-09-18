@@ -22,7 +22,7 @@ import com.linkedin.photon.ml.data.LabeledPoint
 import com.linkedin.photon.ml.function.{DiffFunction, DistributedObjectiveFunction, L2RegularizationDiff}
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.optimization.RegularizationType
-import com.linkedin.photon.ml.optimization.game.GLMOptimizationConfiguration
+import com.linkedin.photon.ml.optimization.game.CoordinateOptimizationConfiguration
 import com.linkedin.photon.ml.util.{BroadcastWrapper, VectorUtils}
 
 /**
@@ -112,16 +112,14 @@ object DistributedSmoothedHingeLossFunction {
    * @return A new DistributedSmoothedHingeLossFunction
    */
   def apply(
-      configuration: GLMOptimizationConfiguration,
+      configuration: CoordinateOptimizationConfiguration,
       treeAggregateDepth: Int): DistributedSmoothedHingeLossFunction = {
 
     val regularizationContext = configuration.regularizationContext
 
     regularizationContext.regularizationType match {
       case RegularizationType.L2 | RegularizationType.ELASTIC_NET =>
-        new DistributedSmoothedHingeLossFunction(treeAggregateDepth) with L2RegularizationDiff {
-          l2RegWeight = regularizationContext.getL2RegularizationWeight(configuration.regularizationWeight)
-        }
+        new DistributedSmoothedHingeLossFunction(treeAggregateDepth) with L2RegularizationDiff
 
       case _ =>
         new DistributedSmoothedHingeLossFunction(treeAggregateDepth)

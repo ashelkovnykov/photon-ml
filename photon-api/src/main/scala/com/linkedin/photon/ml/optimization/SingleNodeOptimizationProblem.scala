@@ -22,7 +22,7 @@ import com.linkedin.photon.ml.function._
 import com.linkedin.photon.ml.model.Coefficients
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.optimization.VarianceComputationType.VarianceComputationType
-import com.linkedin.photon.ml.optimization.game.{GLMOptimizationConfiguration, RandomEffectOptimizationConfiguration}
+import com.linkedin.photon.ml.optimization.game.{CoordinateOptimizationConfiguration, RandomEffectOptimizationConfiguration}
 import com.linkedin.photon.ml.supervised.model.GeneralizedLinearModel
 import com.linkedin.photon.ml.util.BroadcastWrapper
 import com.linkedin.photon.ml.util.Linalg.choleskyInverse
@@ -41,11 +41,13 @@ protected[ml] class SingleNodeOptimizationProblem[Objective <: SingleNodeObjecti
     optimizer: Optimizer[Objective],
     objectiveFunction: Objective,
     glmConstructor: Coefficients => GeneralizedLinearModel,
+    regularizationContext: RegularizationContext,
     varianceComputationType: VarianceComputationType)
   extends GeneralizedLinearOptimizationProblem[Objective](
     optimizer,
     objectiveFunction,
     glmConstructor,
+    regularizationContext,
     varianceComputationType)
   with Serializable {
 
@@ -112,12 +114,13 @@ object SingleNodeOptimizationProblem {
    * @return A new [[SingleNodeOptimizationProblem]]
    */
   def apply[Function <: SingleNodeObjectiveFunction](
-      configuration: GLMOptimizationConfiguration,
+      configuration: CoordinateOptimizationConfiguration,
       objectiveFunction: Function,
       glmConstructor: Coefficients => GeneralizedLinearModel,
       normalizationContext: BroadcastWrapper[NormalizationContext],
       varianceComputationType: VarianceComputationType): SingleNodeOptimizationProblem[Function] = {
 
+    val regularizationContext = configuration.regularizationContext
     // Will result in a runtime error if created Optimizer cannot be cast to an Optimizer that can handle the given
     // objective function.
     val optimizer = OptimizerFactory
@@ -128,6 +131,7 @@ object SingleNodeOptimizationProblem {
       optimizer,
       objectiveFunction,
       glmConstructor,
+      regularizationContext,
       varianceComputationType)
   }
 }

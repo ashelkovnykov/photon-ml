@@ -33,7 +33,13 @@ protected[ml] abstract class Coordinate[D <: Dataset[D]](protected val dataset: 
    * @param dataset The updated dataset
    * @return A new coordinate with the updated dataset
    */
-  protected[algorithm] def updateCoordinateWithDataset(dataset: D): Coordinate[D]
+  protected[algorithm] def updateDataset(dataset: D): Coordinate[D]
+
+  /**
+   *
+   * @param newRegWeight
+   */
+  protected[ml] def updateRegularizationWeight(newRegWeight: Double): Coordinate[D]
 
   /**
    * Compute an optimized model (i.e. run the coordinate optimizer) for the current dataset.
@@ -50,7 +56,7 @@ protected[ml] abstract class Coordinate[D <: Dataset[D]](protected val dataset: 
    * @return A (updated model, optimization state tracking information) tuple
    */
   protected[algorithm] def trainModel(score: CoordinateDataScores): (DatumScoringModel, OptimizationTracker) =
-    updateCoordinateWithDataset(dataset.addScoresToOffsets(score)).trainModel()
+    updateDataset(dataset.addScoresToOffsets(score)).trainModel()
 
   /**
    * Compute an optimized model (i.e. run the coordinate optimizer) for the current dataset using an existing model as
@@ -72,7 +78,7 @@ protected[ml] abstract class Coordinate[D <: Dataset[D]](protected val dataset: 
   protected[algorithm] def trainModel(
       model: DatumScoringModel,
       score: CoordinateDataScores): (DatumScoringModel, OptimizationTracker) =
-    updateCoordinateWithDataset(dataset.addScoresToOffsets(score)).trainModel(model)
+    updateDataset(dataset.addScoresToOffsets(score)).trainModel(model)
 
   /**
    * Compute scores for the coordinate data using a given model.

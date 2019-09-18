@@ -56,10 +56,19 @@ protected[ml] class RandomEffectCoordinate[Objective <: SingleNodeObjectiveFunct
    * @param dataset The updated [[RandomEffectDataset]]
    * @return A new coordinate with the updated [[RandomEffectDataset]]
    */
-  override protected[algorithm] def updateCoordinateWithDataset(
-      dataset: RandomEffectDataset): RandomEffectCoordinate[Objective] =
+  override protected[algorithm] def updateDataset(dataset: RandomEffectDataset): RandomEffectCoordinate[Objective] =
     new RandomEffectCoordinate(dataset, optimizationProblem)
 
+  /**
+   *
+   * @param newRegWeight
+   */
+  override protected[ml] def updateRegularizationWeight(newRegWeight: Double): RandomEffectCoordinate[Objective] = {
+
+    val newOptimizationProblem = optimizationProblem.updateRegularizationWeights(newRegWeight)
+
+    new RandomEffectCoordinate(dataset, newOptimizationProblem)
+  }
 
   /**
    * Compute an optimized model (i.e. run the coordinate optimizer) for the current dataset.

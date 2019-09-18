@@ -21,11 +21,11 @@ import org.apache.spark.storage.StorageLevel
 import com.linkedin.photon.ml.Types.UniqueSampleId
 import com.linkedin.photon.ml.constants.MathConst
 import com.linkedin.photon.ml.data.LabeledPoint
-import com.linkedin.photon.ml.function.{DistributedObjectiveFunction, L2Regularization, TwiceDiffFunction}
+import com.linkedin.photon.ml.function.{DistributedObjectiveFunction, TwiceDiffFunction}
 import com.linkedin.photon.ml.model.Coefficients
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.optimization.VarianceComputationType.VarianceComputationType
-import com.linkedin.photon.ml.optimization.game.GLMOptimizationConfiguration
+import com.linkedin.photon.ml.optimization.game.CoordinateOptimizationConfiguration
 import com.linkedin.photon.ml.sampling.DownSampler
 import com.linkedin.photon.ml.supervised.model.GeneralizedLinearModel
 import com.linkedin.photon.ml.util.BroadcastWrapper
@@ -54,25 +54,8 @@ protected[ml] class DistributedOptimizationProblem[Objective <: DistributedObjec
     optimizer,
     objectiveFunction,
     glmConstructor,
+    regularizationContext,
     varianceComputation) {
-
-  /**
-   * Update the regularization weight for the optimization problem
-   *
-   * @param regularizationWeight The new regularization weight
-   */
-  def updateRegularizationWeight(regularizationWeight: Double): Unit = {
-    optimizer match {
-      case owlqn: OWLQN =>
-        owlqn.l1RegularizationWeight = regularizationContext.getL1RegularizationWeight(regularizationWeight)
-      case _ =>
-    }
-    objectiveFunction match {
-      case l2RegFunc: DistributedObjectiveFunction with L2Regularization =>
-        l2RegFunc.l2RegularizationWeight = regularizationContext.getL2RegularizationWeight(regularizationWeight)
-      case _ =>
-    }
-  }
 
   /**
    * Compute coefficient variances (if enabled).
@@ -184,7 +167,7 @@ object DistributedOptimizationProblem {
    * @return A new [[DistributedOptimizationProblem]]
    */
   def apply[Function <: DistributedObjectiveFunction](
-      configuration: GLMOptimizationConfiguration,
+      configuration: CoordinateOptimizationConfiguration,
       objectiveFunction: Function,
       samplerOption: Option[DownSampler],
       glmConstructor: Coefficients => GeneralizedLinearModel,

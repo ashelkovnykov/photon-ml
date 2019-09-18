@@ -19,12 +19,13 @@ import java.util.StringJoiner
 import scala.collection.mutable
 import scala.util.matching.Regex
 
+import com.linkedin.photon.ml.{CoordinateConfiguration, FixedEffectCoordinateConfiguration, RandomEffectCoordinateConfiguration}
 import com.linkedin.photon.ml.Types.{CoordinateId, FeatureShardId}
 import com.linkedin.photon.ml.data.{FixedEffectDataConfiguration, InputColumnsNames, RandomEffectDataConfiguration}
-import com.linkedin.photon.ml.io.{CoordinateConfiguration, FeatureShardConfiguration, FixedEffectCoordinateConfiguration, RandomEffectCoordinateConfiguration}
+import com.linkedin.photon.ml.io.FeatureShardConfiguration
 import com.linkedin.photon.ml.optimization._
 import com.linkedin.photon.ml.optimization.RegularizationType._
-import com.linkedin.photon.ml.optimization.game.{FixedEffectOptimizationConfiguration, GLMOptimizationConfiguration, RandomEffectOptimizationConfiguration}
+import com.linkedin.photon.ml.optimization.game.{FixedEffectOptimizationConfiguration, RandomEffectOptimizationConfiguration}
 import com.linkedin.photon.ml.util.{DoubleRange, Logging}
 
 /**
@@ -240,9 +241,7 @@ object ScoptParserHelpers extends Logging {
           optimizer,
           maxIter,
           tolerance,
-          regularizationContext,
-          regularizationWeightRange = regularizationWeightRange,
-          elasticNetParamRange = elasticNetParamRange)
+          regularizationContext)
 
         // Log warnings for fixed effect coordinate settings found in random effect coordinate
         COORDINATE_CONFIG_FIXED_ONLY_ARGS.foreach { config =>
@@ -251,17 +250,16 @@ object ScoptParserHelpers extends Logging {
           }
         }
 
-        RandomEffectCoordinateConfiguration(dataConfig, optConfig, regularizationWeights)
+        RandomEffectCoordinateConfiguration(
+          dataConfig,
+          optConfig,
+          regularizationWeights,
+          regularizationWeightRange,
+          elasticNetParamRange)
 
       case None =>
         val dataConfig = FixedEffectDataConfiguration(featureShard, minPartitions)
-        val optConfig = FixedEffectOptimizationConfiguration(
-          optimizer,
-          maxIter,
-          tolerance,
-          regularizationContext,
-          regularizationWeightRange = regularizationWeightRange,
-          elasticNetParamRange = elasticNetParamRange)
+        val optConfig = FixedEffectOptimizationConfiguration(optimizer, maxIter, tolerance, regularizationContext)
 
         // Log warnings for random effect coordinate settings found in fixed effect coordinate
         COORDINATE_CONFIG_RANDOM_ONLY_ARGS.foreach { config =>
@@ -276,7 +274,9 @@ object ScoptParserHelpers extends Logging {
             .get(COORDINATE_OPT_CONFIG_DOWN_SAMPLING_RATE)
             .map(rate => optConfig.copy(downSamplingRate = rate.toDouble))
             .getOrElse(optConfig),
-          regularizationWeights)
+          regularizationWeights,
+          regularizationWeightRange,
+          elasticNetParamRange)
     }
 
     Map((coordinateName, config))
@@ -416,7 +416,7 @@ object ScoptParserHelpers extends Logging {
       val strJoiner = new StringJoiner(LIST_DELIMITER)
       val argsMap = mutable.LinkedHashMap[String, String]()
       val dataConfig = coordinateConfig.dataConfiguration
-      val optConfig = coordinateConfig.optimizationConfiguration.asInstanceOf[GLMOptimizationConfiguration]
+      val optConfig = coordinateConfig.optimizationConfiguration
 
       //
       // Append required args
@@ -434,6 +434,13 @@ object ScoptParserHelpers extends Logging {
       //
       // Append optional args
       //
+
+      coordinateConfig.regularizationWeightRange.foreach { range =>
+        argsMap += (COORDINATE_OPT_CONFIG_REG_WEIGHT_RANGE -> doubleRangeToString(range))
+      }
+      coordinateConfig.elasticNetParamRange.foreach { range =>
+        argsMap += (COORDINATE_OPT_CONFIG_REG_ALPHA_RANGE -> doubleRangeToString(range))
+      }
 
       dataConfig match {
         case reDataConfig: RandomEffectDataConfiguration =>
@@ -453,13 +460,6 @@ object ScoptParserHelpers extends Logging {
         case _ =>
       }
 
-      optConfig match {
-        case feOptConfig: FixedEffectOptimizationConfiguration =>
-          argsMap += (COORDINATE_OPT_CONFIG_DOWN_SAMPLING_RATE -> feOptConfig.downSamplingRate.toString)
-
-        case _ =>
-      }
-
       optConfig.regularizationContext.regularizationType match {
         case NONE =>
 
@@ -471,12 +471,12 @@ object ScoptParserHelpers extends Logging {
           argsMap +=
             (COORDINATE_OPT_CONFIG_REG_WEIGHTS ->
               coordinateConfig.regularizationWeights.mkString(SECONDARY_LIST_DELIMITER.toString))
-          optConfig.regularizationWeightRange.foreach { range =>
-            argsMap += (COORDINATE_OPT_CONFIG_REG_WEIGHT_RANGE -> doubleRangeToString(range))
-          }
-          optConfig.elasticNetParamRange.foreach { range =>
-            argsMap += (COORDINATE_OPT_CONFIG_REG_ALPHA_RANGE -> doubleRangeToString(range))
-          }
+      }
+      optConfig match {
+        case feOptConfig: FixedEffectOptimizationConfiguration =>
+          argsMap += (COORDINATE_OPT_CONFIG_DOWN_SAMPLING_RATE -> feOptConfig.downSamplingRate.toString)
+
+        case _ =>
       }
 
       //

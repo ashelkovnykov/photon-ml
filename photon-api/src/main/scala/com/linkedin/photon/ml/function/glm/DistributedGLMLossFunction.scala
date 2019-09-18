@@ -22,7 +22,7 @@ import com.linkedin.photon.ml.data.LabeledPoint
 import com.linkedin.photon.ml.function._
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.optimization.RegularizationType
-import com.linkedin.photon.ml.optimization.game.GLMOptimizationConfiguration
+import com.linkedin.photon.ml.optimization.game.CoordinateOptimizationConfiguration
 import com.linkedin.photon.ml.util.BroadcastWrapper
 
 /**
@@ -158,20 +158,15 @@ object DistributedGLMLossFunction {
    * @return A new DistributedGLMLossFunction
    */
   def apply(
-      configuration: GLMOptimizationConfiguration,
+      configuration: CoordinateOptimizationConfiguration,
       singleLossFunction: PointwiseLossFunction,
       treeAggregateDepth: Int): DistributedGLMLossFunction = {
 
     val regularizationContext = configuration.regularizationContext
-    val regularizationWeight = configuration.regularizationWeight
 
     regularizationContext.regularizationType match {
       case RegularizationType.L2 | RegularizationType.ELASTIC_NET =>
-        new DistributedGLMLossFunction(singleLossFunction, treeAggregateDepth)
-          with L2RegularizationTwiceDiff {
-
-          l2RegWeight = regularizationContext.getL2RegularizationWeight(regularizationWeight)
-        }
+        new DistributedGLMLossFunction(singleLossFunction, treeAggregateDepth) with L2RegularizationTwiceDiff
 
       case _ => new DistributedGLMLossFunction(singleLossFunction, treeAggregateDepth)
     }

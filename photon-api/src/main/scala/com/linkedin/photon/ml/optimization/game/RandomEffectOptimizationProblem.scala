@@ -43,6 +43,40 @@ protected[ml] class RandomEffectOptimizationProblem[Objective <: SingleNodeObjec
     glmConstructor: Coefficients => GeneralizedLinearModel)
   extends RDDLike {
 
+  //
+  // RandomEffectOptimizationProblem functions
+  //
+
+  /**
+   * Create a default generalized linear model with 0-valued coefficients
+   *
+   * @param dimension The dimensionality of the model coefficients
+   * @return A model with zero coefficients
+   */
+  def initializeModel(dimension: Int): GeneralizedLinearModel =
+    glmConstructor(Coefficients.initializeZeroCoefficients(dimension))
+
+  /**
+   *
+   * @param lambda
+   * @return
+   */
+  def updateRegularizationWeights(lambda: Double): RandomEffectOptimizationProblem[Objective] = {
+
+    val newOptimizationProblems = optimizationProblems.map { case (rEId, optimizationProblem) =>
+
+      optimizationProblem.updateRegularizationWeight(lambda)
+
+      (rEId, optimizationProblem)
+    }
+
+    new RandomEffectOptimizationProblem[Objective](newOptimizationProblems, glmConstructor)
+  }
+
+  //
+  // RDDLike functions
+  //
+
   /**
    * Get the Spark context.
    *
@@ -102,27 +136,4 @@ protected[ml] class RandomEffectOptimizationProblem[Objective <: SingleNodeObjec
 
     this
   }
-
-  /**
-   * Create a default generalized linear model with 0-valued coefficients
-   *
-   * @param dimension The dimensionality of the model coefficients
-   * @return A model with zero coefficients
-   */
-  def initializeModel(dimension: Int): GeneralizedLinearModel =
-    glmConstructor(Coefficients.initializeZeroCoefficients(dimension))
-
-  /**
-   * Compute the regularization term value
-   *
-   * @param modelsRDD The trained models
-   * @return The combined regularization term value
-   */
-  def getRegularizationTermValue(modelsRDD: RDD[(REId, GeneralizedLinearModel)]): Double =
-    optimizationProblems
-      .join(modelsRDD)
-      .map {
-        case (_, (optimizationProblem, model)) => optimizationProblem.getRegularizationTermValue(model)
-      }
-      .reduce(_ + _)
 }

@@ -16,7 +16,7 @@ package com.linkedin.photon.ml.optimization
 
 import com.linkedin.photon.ml.function.TwiceDiffFunction
 import com.linkedin.photon.ml.normalization.NormalizationContext
-import com.linkedin.photon.ml.optimization.game.GLMOptimizationConfiguration
+import com.linkedin.photon.ml.optimization.game.CoordinateOptimizationConfiguration
 import com.linkedin.photon.ml.util.BroadcastWrapper
 
 /**
@@ -34,15 +34,14 @@ protected[ml] object OptimizerFactory {
    * @return A new [[Optimizer]]
    */
   def build(
-      configuration: GLMOptimizationConfiguration,
+      configuration: CoordinateOptimizationConfiguration,
       normalizationContext: BroadcastWrapper[NormalizationContext]): Optimizer[TwiceDiffFunction] = {
 
-    val GLMOptimizationConfiguration(optType, maxIter, tolerance, regContext, regWeight) = configuration
+    val CoordinateOptimizationConfiguration(optType, maxIter, tolerance, regContext) = configuration
 
     (optType, regContext.regularizationType) match {
       case (OptimizerType.LBFGS, RegularizationType.L1 | RegularizationType.ELASTIC_NET) =>
         new OWLQN(
-          l1RegWeight = regContext.getL1RegularizationWeight(regWeight),
           normalizationContext = normalizationContext,
           tolerance = tolerance,
           maxNumIterations = maxIter)

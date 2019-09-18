@@ -25,15 +25,15 @@ import com.linkedin.photon.ml.HyperparameterTuningMode.HyperparameterTuningMode
 import com.linkedin.photon.ml.TaskType.TaskType
 import com.linkedin.photon.ml.Types.CoordinateId
 import com.linkedin.photon.ml.cli.game.training.GameTrainingDriver
+import com.linkedin.photon.ml.io.ModelOutputMode
 import com.linkedin.photon.ml.io.ModelOutputMode.ModelOutputMode
 import com.linkedin.photon.ml.io.scopt.{ScoptParameter, ScoptParserHelpers, ScoptParserReads}
-import com.linkedin.photon.ml.io.{CoordinateConfiguration, ModelOutputMode}
 import com.linkedin.photon.ml.normalization.NormalizationType
 import com.linkedin.photon.ml.normalization.NormalizationType.NormalizationType
 import com.linkedin.photon.ml.optimization.VarianceComputationType
 import com.linkedin.photon.ml.optimization.VarianceComputationType.VarianceComputationType
 import com.linkedin.photon.ml.util.{DateRange, DaysRange}
-import com.linkedin.photon.ml.{HyperparameterTuningMode, TaskType}
+import com.linkedin.photon.ml.{CoordinateConfiguration, HyperparameterTuningMode, TaskType}
 
 /**
  * Scopt command line argument parser for GAME training parameters.

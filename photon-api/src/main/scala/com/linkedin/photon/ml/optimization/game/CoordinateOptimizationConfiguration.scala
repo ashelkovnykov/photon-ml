@@ -16,12 +16,6 @@ package com.linkedin.photon.ml.optimization.game
 
 import com.linkedin.photon.ml.optimization.OptimizerType.OptimizerType
 import com.linkedin.photon.ml.optimization._
-import com.linkedin.photon.ml.util.DoubleRange
-
-/**
- * Generic trait for a configuration to define a coordinate.
- */
-sealed trait CoordinateOptimizationConfiguration
 
 /**
  * Configuration for a GLM coordinate.
@@ -30,51 +24,16 @@ sealed trait CoordinateOptimizationConfiguration
  * @param maximumIterations The upper limit on the number of optimization iterations to perform
  * @param tolerance The relative tolerance limit for optimization
  * @param regularizationContext Regularization context
- * @param regularizationWeight Regularization weight
- * @param regularizationWeightRange Regularization weight range
- * @param elasticNetParamRange Elastic net alpha range
  */
-protected[ml] abstract class GLMOptimizationConfiguration(
+protected[ml] abstract class CoordinateOptimizationConfiguration(
     val optimizerType: OptimizerType,
     val maximumIterations: Int,
     val tolerance: Double,
-    val regularizationContext: RegularizationContext,
-    val regularizationWeight: Double,
-    val regularizationWeightRange: Option[DoubleRange] = None,
-    val elasticNetParamRange: Option[DoubleRange] = None)
-  extends CoordinateOptimizationConfiguration
-    with Serializable {
+    val regularizationContext: RegularizationContext)
+  extends Serializable {
 
   require(0 < maximumIterations, s"Less than 1 specified for maximumIterations (specified: $maximumIterations")
   require(0.0d <= tolerance, s"Specified negative tolerance for optimizer: $tolerance")
-  require(0 <= regularizationWeight, s"Negative regularization weight: $regularizationWeight")
-
-  regularizationWeightRange.foreach { case DoubleRange(start, _) =>
-    require(start > 0.0, "Regularization weight ranges must be positive")
-  }
-
-  elasticNetParamRange.foreach { case DoubleRange(start, end) =>
-    require(start >= 0.0 && end <= 1.0, "Elastic net alpha ranges must lie within [0, 1]")
-  }
-}
-
-object GLMOptimizationConfiguration {
-
-  /**
-   * Parameter extractor helper method.
-   *
-   * @param config An existing [[GLMOptimizationConfiguration]]
-   * @return A ([[OptimizerType]], maximum iterations, relative tolerance, [[RegularizationContext]],
-   *         regularization weight) tuple, each tuple value coming from the input [[GLMOptimizationConfiguration]]
-   */
-  def unapply(
-      config: GLMOptimizationConfiguration): Option[(OptimizerType, Int, Double, RegularizationContext, Double)] =
-    Some((
-      config.optimizerType,
-      config.maximumIterations,
-      config.tolerance,
-      config.regularizationContext,
-      config.regularizationWeight))
 }
 
 /**
@@ -84,9 +43,6 @@ object GLMOptimizationConfiguration {
  * @param maximumIterations The upper limit on the number of optimization iterations to perform
  * @param tolerance The relative tolerance limit for optimization
  * @param regularizationContext Regularization context
- * @param regularizationWeight Regularization weight
- * @param regularizationWeightRange Regularization weight range
- * @param elasticNetParamRange Elastic net alpha range
  * @param downSamplingRate Down-sampling rate
  */
 case class FixedEffectOptimizationConfiguration(
@@ -94,18 +50,12 @@ case class FixedEffectOptimizationConfiguration(
     override val maximumIterations: Int,
     override val tolerance: Double,
     override val regularizationContext: RegularizationContext = NoRegularizationContext,
-    override val regularizationWeight: Double = 0D,
-    override val regularizationWeightRange: Option[DoubleRange] = None,
-    override val elasticNetParamRange: Option[DoubleRange] = None,
     downSamplingRate: Double = 1D)
-  extends GLMOptimizationConfiguration(
+  extends CoordinateOptimizationConfiguration(
     optimizerType,
     maximumIterations,
     tolerance,
-    regularizationContext,
-    regularizationWeight,
-    regularizationWeightRange,
-    elasticNetParamRange) {
+    regularizationContext) {
 
   require(downSamplingRate > 0.0 && downSamplingRate <= 1.0, s"Unexpected downSamplingRate: $downSamplingRate")
 }
@@ -117,23 +67,31 @@ case class FixedEffectOptimizationConfiguration(
  * @param maximumIterations The upper limit on the number of optimization iterations to perform
  * @param tolerance The relative tolerance limit for optimization
  * @param regularizationContext Regularization context
- * @param regularizationWeight Regularization weight
- * @param regularizationWeightRange Regularization weight range
- * @param elasticNetParamRange Elastic net alpha range
  */
 case class RandomEffectOptimizationConfiguration(
     override val optimizerType: OptimizerType,
     override val maximumIterations: Int,
     override val tolerance: Double,
-    override val regularizationContext: RegularizationContext = NoRegularizationContext,
-    override val regularizationWeight: Double = 0D,
-    override val regularizationWeightRange: Option[DoubleRange] = None,
-    override val elasticNetParamRange: Option[DoubleRange] = None)
-  extends GLMOptimizationConfiguration(
+    override val regularizationContext: RegularizationContext = NoRegularizationContext)
+  extends CoordinateOptimizationConfiguration(
     optimizerType,
     maximumIterations,
     tolerance,
-    regularizationContext,
-    regularizationWeight,
-    regularizationWeightRange,
-    elasticNetParamRange)
+    regularizationContext)
+
+object CoordinateOptimizationConfiguration {
+
+  /**
+   * Parameter extractor helper method.
+   *
+   * @param config An existing [[CoordinateOptimizationConfiguration]]
+   * @return A ([[OptimizerType]], maximum iterations, relative tolerance, [[RegularizationContext]],
+   *         regularization weight) tuple, each tuple value coming from the input [[CoordinateOptimizationConfiguration]]
+   */
+  def unapply(config: CoordinateOptimizationConfiguration): Option[(OptimizerType, Int, Double, RegularizationContext)] =
+    Some((
+      config.optimizerType,
+      config.maximumIterations,
+      config.tolerance,
+      config.regularizationContext))
+}

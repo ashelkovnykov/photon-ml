@@ -33,7 +33,6 @@ import com.linkedin.photon.avro.generated.{BayesianLinearModelAvro, FeatureSumma
 import com.linkedin.photon.ml.TaskType.TaskType
 import com.linkedin.photon.ml.Types.{CoordinateId, FeatureShardId}
 import com.linkedin.photon.ml.cli.game.training.GameTrainingDriver
-import com.linkedin.photon.ml.estimators.GameEstimator
 import com.linkedin.photon.ml.index.{IndexMap, IndexMapLoader}
 import com.linkedin.photon.ml.model._
 import com.linkedin.photon.ml.optimization._
@@ -41,7 +40,7 @@ import com.linkedin.photon.ml.optimization.game._
 import com.linkedin.photon.ml.stat.FeatureDataStatistics
 import com.linkedin.photon.ml.supervised.model.GeneralizedLinearModel
 import com.linkedin.photon.ml.util._
-import com.linkedin.photon.ml.{Constants, TaskType}
+import com.linkedin.photon.ml.{Constants, CoordinateConfiguration, TaskType}
 
 /**
  * Some basic functions to read/write GAME models from/to HDFS.
@@ -81,7 +80,6 @@ object ModelProcessingUtils {
       outputDir: Path,
       gameModel: GameModel,
       optimizationTask: TaskType,
-      optimizationConfigurations: GameEstimator.GameOptimizationConfiguration,
       randomEffectModelFileLimit: Option[Int],
       featureShardIdToFeatureMapLoader: Map[String, IndexMapLoader],
       sparsityThreshold: Double): Unit = {
@@ -127,8 +125,6 @@ object ModelProcessingUtils {
             sparsityThreshold)
       }
     }
-
-    saveGameModelMetadata(hadoopConfiguration, outputDir, optimizationTask, optimizationConfigurations)
   }
 
   /**
@@ -402,22 +398,22 @@ object ModelProcessingUtils {
   }
 
   /**
-   * Convert a [[GameEstimator.GameOptimizationConfiguration]] to JSON representation.
    *
-   * @param gameOptConfig The [[GameEstimator.GameOptimizationConfiguration]] to convert
+   *
+   * @param gameConfig
    * @return The converted JSON representation
    */
-  private def gameOptConfigToJson(gameOptConfig: GameEstimator.GameOptimizationConfiguration): String =
+  private def gameConfigToJson(configs: Map[CoordinateId, CoordinateConfiguration]): String =
     s"""
        |{
        |  "values": [
-       |    ${gameOptConfig
-              .map { case (coordinateId, optConfig) =>
+       |    ${configs
+              .map { case (coordinateId, config) =>
                 s"""
-                   |{
-                   |  "name": "$coordinateId",
-                   |  "configuration": ${optimizationConfigToJson(optConfig)}
-                   |}""".stripMargin
+                   |    {
+                   |      "name": "$coordinateId",
+                   |      "optimizationConfiguration": ${optimizationConfigToJson(config.optimizationConfiguration)}
+                   |    }""".stripMargin
               }
               .mkString(",\n")}
        |  ]
@@ -433,8 +429,7 @@ object ModelProcessingUtils {
     optimizationConfig match {
       case feOptConfig: FixedEffectOptimizationConfiguration =>
 
-        val FixedEffectOptimizationConfiguration(optType, maxIter, tolerance, regContext, regWeight, _, _, downRate) =
-          feOptConfig
+        val FixedEffectOptimizationConfiguration(optType, maxIter, tolerance, regContext, downRate) = feOptConfig
 
         s"""
            |{
@@ -442,22 +437,19 @@ object ModelProcessingUtils {
            |  "maximumIterations": $maxIter,
            |  "tolerance": $tolerance,
            |  "regularizationContext": ${regularizationContextToJson(regContext)},
-           |  "regularizationWeight": $regWeight,
            |  "downSamplingRate": $downRate
            |}""".stripMargin
 
       case reOptConfig: RandomEffectOptimizationConfiguration =>
 
-        val RandomEffectOptimizationConfiguration(optType, maxIter, tolerance, regContext, regWeight, _, _) =
-          reOptConfig
+        val RandomEffectOptimizationConfiguration(optType, maxIter, tolerance, regContext) = reOptConfig
 
         s"""
            |{
            |  "optimizerType": "$optType",
            |  "maximumIterations": $maxIter,
            |  "tolerance": $tolerance,
-           |  "regularizationContext": ${regularizationContextToJson(regContext)},
-           |  "regularizationWeight": $regWeight,
+           |  "regularizationContext": ${regularizationContextToJson(regContext)}
            |}""".stripMargin
 
       case _ =>
@@ -480,19 +472,19 @@ object ModelProcessingUtils {
   /**
    * Save model metadata to a JSON file.
    *
-   * @param configuration Configuration parameters access object
+   * @param configuration File system configuration parameters access object
    * @param metadataDir Metadata file parent dir
    * @param optimizationTask The type of optimization used to train the model
-   * @param optimizationConfiguration The optimization configuration for the model
+   * @param coordinateConfigurations The optimization configuration for the model
    */
   def saveGameModelMetadata(
       configuration: Configuration,
       metadataDir: Path,
       optimizationTask: TaskType,
-      optimizationConfiguration: GameEstimator.GameOptimizationConfiguration): Unit = {
+      coordinateConfigurations: Map[CoordinateId, CoordinateConfiguration]): Unit = {
 
     val metadataPath = new Path(metadataDir, METADATA_FILE)
-    val optConfigurations = gameOptConfigToJson(optimizationConfiguration)
+    val optConfigurations = gameConfigToJson(coordinateConfigurations)
     val metadata = s"""
       |{
       |  "$MODEL_TYPE": "$optimizationTask",

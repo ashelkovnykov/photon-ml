@@ -33,12 +33,14 @@ import com.linkedin.photon.ml.util.{BroadcastWrapper, Logging}
  * @param optimizer The underlying optimizer which iteratively solves the convex problem
  * @param objectiveFunction The objective function to optimize
  * @param glmConstructor The function to use for producing GLMs from trained coefficients
+ * @param regularizationContext
  * @param varianceComputation If an how to compute coefficient variances
  */
 protected[ml] abstract class GeneralizedLinearOptimizationProblem[Objective <: ObjectiveFunction](
     optimizer: Optimizer[Objective],
     objectiveFunction: Objective,
     glmConstructor: Coefficients => GeneralizedLinearModel,
+    regularizationContext: RegularizationContext,
     varianceComputation: VarianceComputationType) extends Logging {
 
   /**
@@ -47,6 +49,25 @@ protected[ml] abstract class GeneralizedLinearOptimizationProblem[Objective <: O
    * @return Some(OptimizationStatesTracker) if optimization states were tracked, otherwise None
    */
   def getStatesTracker: OptimizationStatesTracker = optimizer.getStateTracker
+
+  /**
+   * Update the regularization weight for the optimization problem
+   *
+   * @param newRegWeight The new regularization weight
+   */
+  def updateRegularizationWeight(newRegWeight: Double): Unit = {
+
+    optimizer match {
+      case owlqn: OWLQN =>
+        owlqn.l1RegularizationWeight = regularizationContext.getL1RegularizationWeight(newRegWeight)
+      case _ =>
+    }
+    objectiveFunction match {
+      case l2RegFunc: L2Regularization =>
+        l2RegFunc.l2RegularizationWeight = regularizationContext.getL2RegularizationWeight(newRegWeight)
+      case _ =>
+    }
+  }
 
   /**
    * Create a default generalized linear model with 0-valued coefficients
@@ -108,28 +129,6 @@ protected[ml] abstract class GeneralizedLinearOptimizationProblem[Objective <: O
    * @return The learned GLM for the given optimization problem, data, regularization type, and regularization weight
    */
   def run(input: objectiveFunction.Data, initialModel: GeneralizedLinearModel): GeneralizedLinearModel
-
-  /**
-   * Compute the regularization term value
-   *
-   * @param model A trained GLM
-   * @return The regularization term value of this optimization problem for the given GLM
-   */
-  def getRegularizationTermValue(model: GeneralizedLinearModel): Double = {
-    import GeneralizedLinearOptimizationProblem._
-
-    val l1RegValue = optimizer match {
-      case l1Optimizer: OWLQN => getL1RegularizationTermValue(model, l1Optimizer.l1RegularizationWeight)
-      case _ => 0D
-    }
-    val l2RegValue = objectiveFunction match {
-      case l2ObjFunc: L2Regularization =>
-        getL2RegularizationTermValue(model, l2ObjFunc.l2RegularizationWeight)
-      case _ => 0D
-    }
-
-    l1RegValue + l2RegValue
-  }
 }
 
 object GeneralizedLinearOptimizationProblem {

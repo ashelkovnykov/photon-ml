@@ -25,7 +25,10 @@ dependencies {
   compile("org.apache.spark:spark-mllib$scalaSuffix:$sparkVersion") {
     exclude group: 'org.apache.avro', module: 'avro-mapred'
   }
-  compile('org.slf4j:slf4j-api:1.7.9')
+  compile('org.apache.logging.log4j:log4j-api:2.11.2')
+  compile('org.apache.logging.log4j:log4j-core:2.11.2')
+  compile('org.apache.logging.log4j:log4j-slf4j-impl:2.11.2')
+  compile('org.slf4j:slf4j-api:1.7.27')
 
   compile("org.apache.avro:avro-mapred:1.7.7$modifier" as String) {
     // We don't need to import netty, and including it can cause version conflicts in downstream projects

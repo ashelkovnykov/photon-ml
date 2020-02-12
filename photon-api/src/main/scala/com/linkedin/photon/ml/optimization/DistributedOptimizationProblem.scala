@@ -35,7 +35,6 @@ import com.linkedin.photon.ml.util.Linalg.choleskyInverse
  * An optimization problem solved by multiple tasks on one or more executors. Used for solving the global optimization
  * problems of a fixed effect model.
  *
- * @tparam Objective The objective function to optimize, using one or more nodes (executors)
  * @param optimizer The underlying optimizer which iteratively solves the convex problem
  * @param objectiveFunction The objective function to optimize
  * @param samplerOption (Optional) A sampler to use for down-sampling the training data prior to optimization
@@ -43,14 +42,14 @@ import com.linkedin.photon.ml.util.Linalg.choleskyInverse
  * @param regularizationContext The regularization context
  * @param varianceComputation If an how to compute coefficient variances
  */
-protected[ml] class DistributedOptimizationProblem[Objective <: DistributedObjectiveFunction] protected[optimization] (
-    optimizer: Optimizer[Objective],
-    objectiveFunction: Objective,
+protected[ml] class DistributedOptimizationProblem protected[optimization] (
+    optimizer: Optimizer[DistributedObjectiveFunction],
+    objectiveFunction: DistributedObjectiveFunction,
     samplerOption: Option[DownSampler],
     glmConstructor: Coefficients => GeneralizedLinearModel,
     regularizationContext: RegularizationContext,
     varianceComputation: VarianceComputationType)
-  extends GeneralizedLinearOptimizationProblem[Objective](
+  extends GeneralizedLinearOptimizationProblem[DistributedObjectiveFunction](
     optimizer,
     objectiveFunction,
     glmConstructor,
@@ -180,13 +179,13 @@ object DistributedOptimizationProblem {
    * @param varianceComputation If and how coefficient variances should be computed
    * @return A new [[DistributedOptimizationProblem]]
    */
-  def apply[Function <: DistributedObjectiveFunction](
+  def apply(
       configuration: CoordinateOptimizationConfiguration,
-      objectiveFunction: Function,
+      objectiveFunction: DistributedObjectiveFunction,
       samplerOption: Option[DownSampler],
       glmConstructor: Coefficients => GeneralizedLinearModel,
       normalizationContext: BroadcastWrapper[NormalizationContext],
-      varianceComputation: VarianceComputationType): DistributedOptimizationProblem[Function] = {
+      varianceComputation: VarianceComputationType): DistributedOptimizationProblem = {
 
     val optimizerConfig = configuration.optimizerConfig
     val regularizationContext = configuration.regularizationContext
@@ -195,7 +194,7 @@ object DistributedOptimizationProblem {
     // objective function.
     val optimizer = OptimizerFactory
       .build(optimizerConfig, normalizationContext, regularizationContext, regularizationWeight)
-      .asInstanceOf[Optimizer[Function]]
+      .asInstanceOf[Optimizer[DistributedObjectiveFunction]]
 
     new DistributedOptimizationProblem(
       optimizer,

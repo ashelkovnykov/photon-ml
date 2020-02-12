@@ -45,7 +45,7 @@ class FixedEffectCoordinateTest {
 
     val dataset = mock(classOf[FixedEffectDataset])
     val newDataset = mock(classOf[FixedEffectDataset])
-    val optimizationProblem = mock(classOf[DistributedOptimizationProblem[DistributedObjectiveFunction]])
+    val optimizationProblem = mock(classOf[DistributedOptimizationProblem])
 
     val coordinate = new MockFixedEffectCoordinate(dataset, optimizationProblem)
     val newCoordinate = coordinate.updateCoordinateWithDataset(newDataset)
@@ -76,7 +76,7 @@ class FixedEffectCoordinateTest {
 
     // Create mocks
     val dataset = mock(classOf[FixedEffectDataset])
-    val optimizationProblem = mock(classOf[DistributedOptimizationProblem[DistributedObjectiveFunction]])
+    val optimizationProblem = mock(classOf[DistributedOptimizationProblem])
     val updatedModel = mock(classOf[GeneralizedLinearModel])
     val labeledPoints = mock(classOf[RDD[(UniqueSampleId, LabeledPoint)]])
     val sparkContext = mock(classOf[SparkContext])
@@ -135,7 +135,7 @@ class FixedEffectCoordinateTest {
     val scores = mock(classOf[RDD[(UniqueSampleId, Double)]])
     val fixedEffectModel = mock(classOf[FixedEffectModel])
     val modelBroadcast = mock(classOf[Broadcast[GeneralizedLinearModel]])
-    val optimizationProblem = mock(classOf[DistributedOptimizationProblem[DistributedObjectiveFunction]])
+    val optimizationProblem = mock(classOf[DistributedOptimizationProblem])
 
     doReturn(labeledPoints).when(dataset).labeledPoints
     doReturn(scores).when(labeledPoints).mapValues(Matchers.any())
@@ -151,13 +151,13 @@ class FixedEffectCoordinateTest {
 
 object FixedEffectCoordinateTest {
 
-  class MockFixedEffectCoordinate[Objective <: DistributedObjectiveFunction](
+  class MockFixedEffectCoordinate(
       val publicDataset: FixedEffectDataset,
-      val publicOptimizationProblem: DistributedOptimizationProblem[Objective])
-    extends FixedEffectCoordinate[Objective](publicDataset, publicOptimizationProblem) {
+      val publicOptimizationProblem: DistributedOptimizationProblem)
+    extends FixedEffectCoordinate(publicDataset, publicOptimizationProblem) {
 
     override protected[algorithm] def updateCoordinateWithDataset(
-        newDataset: FixedEffectDataset): MockFixedEffectCoordinate[Objective] =
+        newDataset: FixedEffectDataset): MockFixedEffectCoordinate =
       new MockFixedEffectCoordinate(newDataset, publicOptimizationProblem)
   }
 }

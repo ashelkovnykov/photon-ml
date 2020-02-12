@@ -36,14 +36,13 @@ import com.linkedin.photon.ml.util.PhotonNonBroadcast
  * A: In the future, we want to be able to have unique regularization weights per optimization problem. In addition, it
  *    may be useful to have access to the optimization state of each individual problem.
  *
- * @tparam Objective The objective function to optimize
  * @param optimizationProblems The component optimization problems (one per individual) for a random effect
  *                             optimization problem
  * @param glmConstructor The function to use for producing [[GeneralizedLinearModel]] objects from trained
  *                       [[Coefficients]]
  */
-protected[ml] class RandomEffectOptimizationProblem[Objective <: SingleNodeObjectiveFunction](
-    val optimizationProblems: RDD[(REId, SingleNodeOptimizationProblem[Objective])],
+protected[ml] class RandomEffectOptimizationProblem(
+    val optimizationProblems: RDD[(REId, SingleNodeOptimizationProblem)],
     glmConstructor: Coefficients => GeneralizedLinearModel)
   extends RDDLike {
 
@@ -122,8 +121,6 @@ object RandomEffectOptimizationProblem {
   /**
    * Build a new [[RandomEffectOptimizationProblem]].
    *
-   * @tparam RandomEffectObjective The type of objective function used to solve individual random effect optimization
-   *                               problems
    * @param linearSubspaceProjectorsRDD The per-entity [[LinearSubspaceProjector]] objects used to compress the
    *                                    per-entity feature spaces
    * @param configuration The optimization problem configuration
@@ -134,14 +131,14 @@ object RandomEffectOptimizationProblem {
    * @param interceptIndexOpt The option of intercept index
    * @return A new [[RandomEffectOptimizationProblem]] object
    */
-  def apply[RandomEffectObjective <: SingleNodeObjectiveFunction](
+  def apply(
       linearSubspaceProjectorsRDD: RDD[(REId, LinearSubspaceProjector)],
       configuration: RandomEffectOptimizationConfiguration,
-      objectiveFunctionFactory: Option[Int] => RandomEffectObjective,
+      objectiveFunctionFactory: Option[Int] => SingleNodeObjectiveFunction,
       glmConstructor: Coefficients => GeneralizedLinearModel,
       normalizationContext: NormalizationContext,
       varianceComputationType: VarianceComputationType = VarianceComputationType.NONE,
-      interceptIndexOpt: Option[Int]): RandomEffectOptimizationProblem[RandomEffectObjective] = {
+      interceptIndexOpt: Option[Int]): RandomEffectOptimizationProblem = {
 
     // Generate new NormalizationContext and SingleNodeOptimizationProblem objects
     val optimizationProblems = linearSubspaceProjectorsRDD

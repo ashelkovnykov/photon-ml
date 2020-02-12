@@ -19,20 +19,18 @@ import org.apache.spark.rdd.RDD
 import com.linkedin.photon.ml.Types.{FeatureShardId, UniqueSampleId}
 import com.linkedin.photon.ml.data._
 import com.linkedin.photon.ml.data.scoring.CoordinateDataScores
-import com.linkedin.photon.ml.function.DistributedObjectiveFunction
 import com.linkedin.photon.ml.model.{DatumScoringModel, FixedEffectModel}
 import com.linkedin.photon.ml.optimization.{DistributedOptimizationProblem, FixedEffectOptimizationTracker, OptimizationTracker}
 
 /**
  * The optimization problem coordinate for a fixed effect model.
  *
- * @tparam Objective The type of objective function used to solve the fixed effect optimization problem
  * @param dataset The training dataset
  * @param optimizationProblem The fixed effect optimization problem
  */
-protected[ml] class FixedEffectCoordinate[Objective <: DistributedObjectiveFunction](
+protected[ml] class FixedEffectCoordinate(
     override protected val dataset: FixedEffectDataset,
-    optimizationProblem: DistributedOptimizationProblem[Objective])
+    optimizationProblem: DistributedOptimizationProblem)
   extends Coordinate[FixedEffectDataset](dataset) {
 
   /**
@@ -41,9 +39,8 @@ protected[ml] class FixedEffectCoordinate[Objective <: DistributedObjectiveFunct
    * @param dataset The updated dataset
    * @return A new coordinate with the updated dataset
    */
-  override protected[algorithm] def updateCoordinateWithDataset(
-      dataset: FixedEffectDataset): FixedEffectCoordinate[Objective] =
-    new FixedEffectCoordinate[Objective](dataset, optimizationProblem)
+  override protected[algorithm] def updateCoordinateWithDataset(dataset: FixedEffectDataset): FixedEffectCoordinate =
+    new FixedEffectCoordinate(dataset, optimizationProblem)
 
   /**
    * Compute an optimized model (i.e. run the coordinate optimizer) for the current dataset.
@@ -115,9 +112,9 @@ object FixedEffectCoordinate {
    *                                   optimization
    * @return A new [[FixedEffectModel]]
    */
-  private def trainModel[Function <: DistributedObjectiveFunction](
+  private def trainModel(
       input: RDD[(UniqueSampleId, LabeledPoint)],
-      optimizationProblem: DistributedOptimizationProblem[Function],
+      optimizationProblem: DistributedOptimizationProblem,
       featureShardId: FeatureShardId,
       initialFixedEffectModelOpt: Option[FixedEffectModel]): FixedEffectModel = {
 

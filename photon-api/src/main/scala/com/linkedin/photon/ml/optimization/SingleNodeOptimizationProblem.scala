@@ -31,18 +31,17 @@ import com.linkedin.photon.ml.util.Linalg.choleskyInverse
  * An optimization problem solved by a single task on one executor. Used for solving the per-entity optimization
  * problems of a random effect model.
  *
- * @tparam Objective The objective function to optimize, using a single node
  * @param optimizer The underlying optimizer which iteratively solves the convex problem
  * @param objectiveFunction The objective function to optimize
  * @param glmConstructor The function to use for producing GLMs from trained coefficients
  * @param varianceComputationType If an how to compute coefficient variances
  */
-protected[ml] class SingleNodeOptimizationProblem[Objective <: SingleNodeObjectiveFunction] protected[optimization] (
-    optimizer: Optimizer[Objective],
-    objectiveFunction: Objective,
+protected[ml] class SingleNodeOptimizationProblem protected[optimization] (
+    optimizer: Optimizer[SingleNodeObjectiveFunction],
+    objectiveFunction: SingleNodeObjectiveFunction,
     glmConstructor: Coefficients => GeneralizedLinearModel,
     varianceComputationType: VarianceComputationType)
-  extends GeneralizedLinearOptimizationProblem[Objective](
+  extends GeneralizedLinearOptimizationProblem[SingleNodeObjectiveFunction](
     optimizer,
     objectiveFunction,
     glmConstructor,
@@ -112,12 +111,12 @@ object SingleNodeOptimizationProblem {
    * @param varianceComputationType Whether to compute coefficient variances, and if so how
    * @return A new [[SingleNodeOptimizationProblem]]
    */
-  def apply[Function <: SingleNodeObjectiveFunction](
+  def apply(
       configuration: CoordinateOptimizationConfiguration,
-      objectiveFunction: Function,
+      objectiveFunction: SingleNodeObjectiveFunction,
       glmConstructor: Coefficients => GeneralizedLinearModel,
       normalizationContext: BroadcastWrapper[NormalizationContext],
-      varianceComputationType: VarianceComputationType): SingleNodeOptimizationProblem[Function] = {
+      varianceComputationType: VarianceComputationType): SingleNodeOptimizationProblem = {
 
     val optimizerConfig = configuration.optimizerConfig
     val regularizationContext = configuration.regularizationContext
@@ -126,7 +125,7 @@ object SingleNodeOptimizationProblem {
     // objective function.
     val optimizer = OptimizerFactory
       .build(optimizerConfig, normalizationContext, regularizationContext, regularizationWeight)
-      .asInstanceOf[Optimizer[Function]]
+      .asInstanceOf[Optimizer[SingleNodeObjectiveFunction]]
 
     new SingleNodeOptimizationProblem(
       optimizer,

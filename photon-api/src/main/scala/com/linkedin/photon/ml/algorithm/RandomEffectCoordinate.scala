@@ -15,7 +15,6 @@
 package com.linkedin.photon.ml.algorithm
 
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
 import com.linkedin.photon.ml.data._
@@ -32,13 +31,12 @@ import com.linkedin.photon.ml.supervised.model.GeneralizedLinearModel
 /**
  * The optimization problem coordinate for a random effect model.
  *
- * @tparam Objective The type of objective function used to solve individual random effect optimization problems
  * @param dataset The training dataset
  * @param optimizationProblem The random effect optimization problem
  */
-protected[ml] class RandomEffectCoordinate[Objective <: SingleNodeObjectiveFunction](
+protected[ml] class RandomEffectCoordinate(
     override protected val  dataset: RandomEffectDataset,
-    protected val optimizationProblem: RandomEffectOptimizationProblem[Objective])
+    protected val optimizationProblem: RandomEffectOptimizationProblem)
   extends Coordinate[RandomEffectDataset](dataset)
     with ModelProjection
     with RDDLike {
@@ -53,8 +51,7 @@ protected[ml] class RandomEffectCoordinate[Objective <: SingleNodeObjectiveFunct
    * @param dataset The updated [[RandomEffectDataset]]
    * @return A new coordinate with the updated [[RandomEffectDataset]]
    */
-  override protected[algorithm] def updateCoordinateWithDataset(
-      dataset: RandomEffectDataset): RandomEffectCoordinate[Objective] =
+  override protected[algorithm] def updateCoordinateWithDataset(dataset: RandomEffectDataset): RandomEffectCoordinate =
     new RandomEffectCoordinate(dataset, optimizationProblem)
 
 
@@ -122,12 +119,12 @@ protected[ml] class RandomEffectCoordinate[Objective <: SingleNodeObjectiveFunct
   override def sparkContext: SparkContext = optimizationProblem.sparkContext
 
   /**
-   * Assign a given name to the [[optimizationProblem]] [[RDD]].
+   * Assign a given name to the [[optimizationProblem]] [[org.apache.spark.rdd.RDD]].
    *
-   * @param name The parent name for all [[RDD]] objects in this class
-   * @return This object with the name of the [[optimizationProblem]] [[RDD]] assigned
+   * @param name The parent name for all [[org.apache.spark.rdd.RDD]] objects in this class
+   * @return This object with the name of the [[optimizationProblem]] [[org.apache.spark.rdd.RDD]] assigned
    */
-  override def setName(name: String): RandomEffectCoordinate[Objective] = {
+  override def setName(name: String): RandomEffectCoordinate = {
 
     optimizationProblem.setName(name)
 
@@ -135,12 +132,12 @@ protected[ml] class RandomEffectCoordinate[Objective <: SingleNodeObjectiveFunct
   }
 
   /**
-   * Set the persistence storage level of the [[optimizationProblem]] [[RDD]].
+   * Set the persistence storage level of the [[optimizationProblem]] [[org.apache.spark.rdd.RDD]].
    *
    * @param storageLevel The storage level
-   * @return This object with the storage level of the [[optimizationProblem]] [[RDD]] set
+   * @return This object with the storage level of the [[optimizationProblem]] [[org.apache.spark.rdd.RDD]] set
    */
-  override def persistRDD(storageLevel: StorageLevel): RandomEffectCoordinate[Objective] = {
+  override def persistRDD(storageLevel: StorageLevel): RandomEffectCoordinate = {
 
     optimizationProblem.persistRDD(storageLevel)
 
@@ -148,12 +145,12 @@ protected[ml] class RandomEffectCoordinate[Objective <: SingleNodeObjectiveFunct
   }
 
   /**
-   * Mark the [[optimizationProblem]] [[RDD]] as unused, and asynchronously remove all blocks for it from memory and
+   * Mark the [[optimizationProblem]] [[org.apache.spark.rdd.RDD]] as unused, and asynchronously remove all blocks for it from memory and
    * disk.
    *
-   * @return This object with the [[optimizationProblem]] [[RDD]] unpersisted
+   * @return This object with the [[optimizationProblem]] [[org.apache.spark.rdd.RDD]] unpersisted
    */
-  override def unpersistRDD(): RandomEffectCoordinate[Objective] = {
+  override def unpersistRDD(): RandomEffectCoordinate = {
 
     optimizationProblem.unpersistRDD()
 
@@ -161,12 +158,12 @@ protected[ml] class RandomEffectCoordinate[Objective <: SingleNodeObjectiveFunct
   }
 
   /**
-   * Materialize the [[optimizationProblem]] [[RDD]] (Spark [[RDD]]s are lazy evaluated: this method forces them to be
-   * evaluated).
+   * Materialize the [[optimizationProblem]] [[org.apache.spark.rdd.RDD]] (Spark [[org.apache.spark.rdd.RDD]]s are lazy
+   * evaluated: this method forces them to be evaluated).
    *
-   * @return This object with the [[optimizationProblem]] [[RDD]] materialized
+   * @return This object with the [[optimizationProblem]] [[org.apache.spark.rdd.RDD]] materialized
    */
-  override def materialize(): RandomEffectCoordinate[Objective] = {
+  override def materialize(): RandomEffectCoordinate = {
 
     optimizationProblem.materialize()
 
@@ -179,8 +176,6 @@ object RandomEffectCoordinate {
   /**
    * Helper function to construct [[RandomEffectCoordinate]] objects.
    *
-   * @tparam RandomEffectObjective The type of objective function used to solve individual random effect optimization
-   *                               problems
    * @param randomEffectDataset The data on which to run the optimization algorithm
    * @param configuration The optimization problem configuration
    * @param objectiveFunctionFactory The objective function to optimize
@@ -190,14 +185,14 @@ object RandomEffectCoordinate {
    * @param interceptIndexOpt The index of the intercept, if there is one
    * @return A new [[RandomEffectCoordinate]] object
    */
-  protected[ml] def apply[RandomEffectObjective <: SingleNodeObjectiveFunction](
+  protected[ml] def apply(
       randomEffectDataset: RandomEffectDataset,
       configuration: RandomEffectOptimizationConfiguration,
-      objectiveFunctionFactory: Option[Int] => RandomEffectObjective,
+      objectiveFunctionFactory: Option[Int] => SingleNodeObjectiveFunction,
       glmConstructor: Coefficients => GeneralizedLinearModel,
       normalizationContext: NormalizationContext,
       varianceComputationType: VarianceComputationType = VarianceComputationType.NONE,
-      interceptIndexOpt: Option[Int] = None): RandomEffectCoordinate[RandomEffectObjective] = {
+      interceptIndexOpt: Option[Int] = None): RandomEffectCoordinate = {
 
     // Generate parameters of ProjectedRandomEffectCoordinate
     val randomEffectOptimizationProblem = RandomEffectOptimizationProblem(
@@ -215,16 +210,15 @@ object RandomEffectCoordinate {
   /**
    * Train a new [[RandomEffectModel]] (i.e. run model optimization for each entity).
    *
-   * @tparam Function The type of objective function used to solve individual random effect optimization problems
    * @param randomEffectDataset The training dataset
    * @param randomEffectOptimizationProblem The per-entity optimization problems
    * @param initialRandomEffectModelOpt An optional existing [[RandomEffectModel]] to use as a starting point for
    *                                    optimization
    * @return A (new [[RandomEffectModel]], optional optimization stats) tuple
    */
-  protected[algorithm] def trainModel[Function <: SingleNodeObjectiveFunction](
+  protected[algorithm] def trainModel(
       randomEffectDataset: RandomEffectDataset,
-      randomEffectOptimizationProblem: RandomEffectOptimizationProblem[Function],
+      randomEffectOptimizationProblem: RandomEffectOptimizationProblem,
       initialRandomEffectModelOpt: Option[RandomEffectModel]): (RandomEffectModel, RandomEffectOptimizationTracker) = {
 
     // All 3 RDDs involved in the joins below use the same partitioner

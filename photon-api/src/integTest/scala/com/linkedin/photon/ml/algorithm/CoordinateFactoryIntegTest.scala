@@ -60,7 +60,7 @@ class CoordinateFactoryIntegTest extends SparkTestUtils {
       INTERCEPT_INDEX)
 
     coordinate match {
-      case _: FixedEffectCoordinate[DistributedObjectiveFunction] =>
+      case _: FixedEffectCoordinate =>
       case other =>
         throw new IllegalArgumentException(
           s"Expected FixedEffectCoordinate[DistributedObjectiveFunction] but got '${other.getClass.toString}'")
@@ -76,7 +76,7 @@ class CoordinateFactoryIntegTest extends SparkTestUtils {
     val mockDataset: RandomEffectDataset = mock(classOf[RandomEffectDataset])
     val mockDataRDD = mock(classOf[RDD[(REId, LocalDataset)]])
     val mockProjectorsRDD = mock(classOf[RDD[(REId, LinearSubspaceProjector)]])
-    val mockProblemsRDD = mock(classOf[RDD[(REId, SingleNodeOptimizationProblem[SingleNodeObjectiveFunction])]])
+    val mockProblemsRDD = mock(classOf[RDD[(REId, SingleNodeOptimizationProblem)]])
     val optimizationConfiguration = RandomEffectOptimizationConfiguration(OPTIMIZER_CONFIG)
 
     doReturn(sc).when(mockDataset).sparkContext
@@ -87,7 +87,7 @@ class CoordinateFactoryIntegTest extends SparkTestUtils {
     doReturn(mockProjectorsRDD).when(mockDataset).projectors
     doReturn(mockProblemsRDD)
       .when(mockProjectorsRDD)
-      .mapValues(Matchers.any(classOf[Function1[LinearSubspaceProjector, SingleNodeOptimizationProblem[SingleNodeObjectiveFunction]]]))
+      .mapValues(Matchers.any(classOf[Function1[LinearSubspaceProjector, SingleNodeOptimizationProblem]]))
 
     val coordinate = CoordinateFactory.build(
       mockDataset,
@@ -100,7 +100,7 @@ class CoordinateFactoryIntegTest extends SparkTestUtils {
       INTERCEPT_INDEX)
 
     coordinate match {
-      case _: RandomEffectCoordinate[SingleNodeObjectiveFunction] =>
+      case _: RandomEffectCoordinate =>
       case other =>
         throw new IllegalArgumentException(
           s"Expected RandomEffectCoordinate[SingleNodeObjectiveFunction] but got '${other.getClass.toString}'")

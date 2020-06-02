@@ -24,7 +24,7 @@ import com.linkedin.photon.ml.data.{FixedEffectDataConfiguration, InputColumnsNa
 import com.linkedin.photon.ml.io.{CoordinateConfiguration, FeatureShardConfiguration, FixedEffectCoordinateConfiguration, RandomEffectCoordinateConfiguration}
 import com.linkedin.photon.ml.optimization._
 import com.linkedin.photon.ml.optimization.RegularizationType._
-import com.linkedin.photon.ml.optimization.game.{FixedEffectOptimizationConfiguration, GLMOptimizationConfiguration, RandomEffectOptimizationConfiguration}
+import com.linkedin.photon.ml.optimization.game.{CoordinateOptimizationConfiguration, FixedEffectOptimizationConfiguration, RandomEffectOptimizationConfiguration}
 import com.linkedin.photon.ml.util.{DoubleRange, Logging}
 
 /**
@@ -413,7 +413,7 @@ object ScoptParserHelpers extends Logging {
       val strJoiner = new StringJoiner(LIST_DELIMITER)
       val argsMap = mutable.LinkedHashMap[String, String]()
       val dataConfig = coordinateConfig.dataConfiguration
-      val optConfig = coordinateConfig.optimizationConfiguration.asInstanceOf[GLMOptimizationConfiguration]
+      val optConfig = coordinateConfig.optimizationConfiguration.asInstanceOf[CoordinateOptimizationConfiguration]
 
       //
       // Append required args

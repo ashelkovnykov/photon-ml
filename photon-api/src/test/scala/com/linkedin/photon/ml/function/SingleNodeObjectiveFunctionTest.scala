@@ -26,7 +26,7 @@ import com.linkedin.photon.ml.data.LabeledPoint
 import com.linkedin.photon.ml.function.glm.{LogisticLossFunction, PoissonLossFunction, SingleNodeGLMLossFunction, SquaredLossFunction}
 import com.linkedin.photon.ml.function.svm.SingleNodeSmoothedHingeLossFunction
 import com.linkedin.photon.ml.normalization.{NoNormalization, NormalizationContext}
-import com.linkedin.photon.ml.optimization.game.GLMOptimizationConfiguration
+import com.linkedin.photon.ml.optimization.game.CoordinateOptimizationConfiguration
 import com.linkedin.photon.ml.optimization.{L2RegularizationContext, NoRegularizationContext}
 import com.linkedin.photon.ml.test.SparkTestUtils
 import com.linkedin.photon.ml.util.BroadcastWrapper
@@ -517,8 +517,8 @@ object SingleNodeObjectiveFunctionTest {
   private val PROBLEM_DIMENSION = 5
   private val NORMALIZATION = NoNormalization()
   private val NORMALIZATION_MOCK = mock(classOf[BroadcastWrapper[NormalizationContext]])
-  private val L2_REG_CONFIGURATION_MOCK = mock(classOf[GLMOptimizationConfiguration])
-  private val NO_REG_CONFIGURATION_MOCK = mock(classOf[GLMOptimizationConfiguration])
+  private val L2_REG_CONFIGURATION_MOCK = mock(classOf[CoordinateOptimizationConfiguration])
+  private val NO_REG_CONFIGURATION_MOCK = mock(classOf[CoordinateOptimizationConfiguration])
   private val REGULARIZATION_WEIGHT = 100.0
   private val DERIVATIVE_DELTA = 1e-6
   private val GRADIENT_TOLERANCE = 1e-3

@@ -53,7 +53,7 @@ class GameEstimatorEvaluationFunction(
   // Pull the hyperparameter ranges from the optimization configuration
   protected[estimators] val ranges: Seq[DoubleRange] = baseConfigSeq
     .flatMap {
-      case (_, config: GLMOptimizationConfiguration) =>
+      case (_, config: CoordinateOptimizationConfiguration) =>
         val regularizationWeightRange = config
           .regularizationWeightRange
           .getOrElse(DEFAULT_REG_WEIGHT_RANGE)
@@ -168,7 +168,7 @@ class GameEstimatorEvaluationFunction(
       .sortBy(_._1)
       .flatMap { case (_, optConfig) =>
         optConfig match {
-          case config: GLMOptimizationConfiguration =>
+          case config: CoordinateOptimizationConfiguration =>
             config.regularizationContext match {
               // For elastic net, pack weight and alpha
               case RegularizationContext(RegularizationType.ELASTIC_NET, Some(alpha)) =>

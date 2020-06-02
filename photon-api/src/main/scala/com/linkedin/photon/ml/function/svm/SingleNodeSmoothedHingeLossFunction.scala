@@ -20,7 +20,7 @@ import com.linkedin.photon.ml.data.LabeledPoint
 import com.linkedin.photon.ml.function.{DiffFunction, L2RegularizationDiff, SingleNodeObjectiveFunction}
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.optimization.RegularizationType
-import com.linkedin.photon.ml.optimization.game.GLMOptimizationConfiguration
+import com.linkedin.photon.ml.optimization.game.CoordinateOptimizationConfiguration
 import com.linkedin.photon.ml.util.{BroadcastWrapper, VectorUtils}
 
 /**
@@ -100,7 +100,7 @@ object SingleNodeSmoothedHingeLossFunction {
    * @return A new SingleNodeSmoothedHingeLossFunction
    */
   def apply(
-      configuration: GLMOptimizationConfiguration,
+      configuration: CoordinateOptimizationConfiguration,
       interceptIndexOpt: Option[Int] = None): SingleNodeSmoothedHingeLossFunction = {
 
     val regularizationContext = configuration.regularizationContext

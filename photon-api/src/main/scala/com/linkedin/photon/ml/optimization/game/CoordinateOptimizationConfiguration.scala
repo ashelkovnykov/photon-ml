@@ -18,12 +18,7 @@ import com.linkedin.photon.ml.optimization._
 import com.linkedin.photon.ml.util.DoubleRange
 
 /**
- * Generic trait for a configuration to define a coordinate.
- */
-sealed trait CoordinateOptimizationConfiguration
-
-/**
- * Configuration for a GLM coordinate.
+ * Configuration for a coordinate.
  *
  * @param optimizerConfig Optimizer configuration
  * @param regularizationContext Regularization context
@@ -31,14 +26,13 @@ sealed trait CoordinateOptimizationConfiguration
  * @param regularizationWeightRange Regularization weight range
  * @param elasticNetParamRange Elastic net alpha range
  */
-protected[ml] abstract class GLMOptimizationConfiguration(
+abstract class CoordinateOptimizationConfiguration(
     val optimizerConfig: OptimizerConfig,
     val regularizationContext: RegularizationContext,
     val regularizationWeight: Double,
     val regularizationWeightRange: Option[DoubleRange] = None,
     val elasticNetParamRange: Option[DoubleRange] = None)
-  extends CoordinateOptimizationConfiguration
-  with Serializable {
+  extends Serializable {
 
   require(0 <= regularizationWeight, s"Negative regularization weight: $regularizationWeight")
   regularizationWeightRange.foreach { case DoubleRange(start, _) =>
@@ -66,7 +60,7 @@ case class FixedEffectOptimizationConfiguration(
     override val regularizationWeightRange: Option[DoubleRange] = None,
     override val elasticNetParamRange: Option[DoubleRange] = None,
     downSamplingRate: Double = 1D)
-  extends GLMOptimizationConfiguration(
+  extends CoordinateOptimizationConfiguration(
     optimizerConfig,
     regularizationContext,
     regularizationWeight,
@@ -91,7 +85,7 @@ case class RandomEffectOptimizationConfiguration(
     override val regularizationWeight: Double = 0D,
     override val regularizationWeightRange: Option[DoubleRange] = None,
     override val elasticNetParamRange: Option[DoubleRange] = None)
-  extends GLMOptimizationConfiguration(
+  extends CoordinateOptimizationConfiguration(
     optimizerConfig,
     regularizationContext,
     regularizationWeight,

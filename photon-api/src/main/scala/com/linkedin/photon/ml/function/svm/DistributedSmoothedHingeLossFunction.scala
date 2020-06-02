@@ -21,7 +21,7 @@ import com.linkedin.photon.ml.data.LabeledPoint
 import com.linkedin.photon.ml.function.{DiffFunction, DistributedObjectiveFunction, L2RegularizationDiff}
 import com.linkedin.photon.ml.normalization.NormalizationContext
 import com.linkedin.photon.ml.optimization.RegularizationType
-import com.linkedin.photon.ml.optimization.game.GLMOptimizationConfiguration
+import com.linkedin.photon.ml.optimization.game.CoordinateOptimizationConfiguration
 import com.linkedin.photon.ml.util.{BroadcastWrapper, VectorUtils}
 
 /**
@@ -112,7 +112,7 @@ object DistributedSmoothedHingeLossFunction {
    * @return A new DistributedSmoothedHingeLossFunction
    */
   def apply(
-      configuration: GLMOptimizationConfiguration,
+      configuration: CoordinateOptimizationConfiguration,
       treeAggregateDepth: Int,
       interceptIndexOpt: Option[Int] = None): DistributedSmoothedHingeLossFunction = {
 

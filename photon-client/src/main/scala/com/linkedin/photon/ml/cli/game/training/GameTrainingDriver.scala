@@ -40,7 +40,7 @@ import com.linkedin.photon.ml.io.scopt.game.ScoptGameTrainingParametersParser
 import com.linkedin.photon.ml.model.{DatumScoringModel, FixedEffectModel, RandomEffectModel}
 import com.linkedin.photon.ml.normalization.NormalizationType.NormalizationType
 import com.linkedin.photon.ml.normalization.{NormalizationContext, NormalizationType}
-import com.linkedin.photon.ml.optimization.VarianceComputationType
+import com.linkedin.photon.ml.optimization.{RegularizationType, VarianceComputationType}
 import com.linkedin.photon.ml.optimization.VarianceComputationType.VarianceComputationType
 import com.linkedin.photon.ml.optimization.game.CoordinateOptimizationConfiguration
 import com.linkedin.photon.ml.stat.FeatureDataStatistics
@@ -660,7 +660,17 @@ object GameTrainingDriver extends GameDriver {
         val (_, baseConfig, evaluationResults) = models.head
 
         val iteration = getOrDefault(hyperParameterTuningIter)
-        val dimension = baseConfig.toSeq.length
+        val dimension = baseConfig
+          .toSeq
+          .map { case (_, configuration) =>
+            configuration.regularizationContext.regularizationType match {
+              case RegularizationType.ELASTIC_NET => 2
+              case RegularizationType.L1 => 1
+              case RegularizationType.L2 => 1
+              case RegularizationType.NONE => 0
+            }
+          }
+          .sum
         val mode = getOrDefault(hyperParameterTuning)
 
         val evaluator = evaluationResults.get.primaryEvaluator

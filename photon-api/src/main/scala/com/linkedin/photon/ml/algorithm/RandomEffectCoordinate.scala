@@ -235,23 +235,35 @@ object RandomEffectCoordinate {
       .activeData
       .join(randomEffectOptimizationProblem.optimizationProblems)
 
-    // Left join the models to the (data, optimization problem) tuple for cases where we have a prior model but no new
-    // data
     val (newModels, randomEffectOptimizationTracker) = initialRandomEffectModelOpt
       .map { randomEffectModel =>
+        // Need outer join to handle the following cases:
+        // Initial model + data: Train a model on the new data using the initial model as a starting point
+        // Initial model + no data: Keep the initial model
+        // No initial model + data: Train a new model on the data
         val modelsAndTrackers = randomEffectModel
           .modelsRDD
-          .leftOuterJoin(dataAndOptimizationProblems)
+          .fullOuterJoin(dataAndOptimizationProblems)
           .mapValues {
-            case (localModel, Some((localDataset, optimizationProblem))) =>
+            case (Some(localModel), Some((localDataset, optimizationProblem))) =>
               val trainingLabeledPoints = localDataset.dataPoints.map(_._2)
               val updatedModel = optimizationProblem.run(trainingLabeledPoints, localModel)
               val stateTrackers = optimizationProblem.getStatesTracker
 
               (updatedModel, Some(stateTrackers))
 
-            case (localModel, _) =>
+            case (None, Some((localDataset, optimizationProblem))) =>
+              val trainingLabeledPoints = localDataset.dataPoints.map(_._2)
+              val updatedModel = optimizationProblem.run(trainingLabeledPoints)
+              val stateTrackers = optimizationProblem.getStatesTracker
+
+              (updatedModel, Some(stateTrackers))
+
+            case (Some(localModel), None) =>
               (localModel, None)
+
+            case _ =>
+              throw new IllegalStateException("Impossible case: only included so that Scala compiler doesn't log warning")
           }
         modelsAndTrackers.persist(StorageLevel.MEMORY_ONLY_SER)
 

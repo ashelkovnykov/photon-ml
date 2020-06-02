@@ -14,6 +14,7 @@
  */
 package com.linkedin.photon.ml.model
 
+import breeze.linalg.SparseVector
 import org.apache.spark.SparkContext
 import org.testng.Assert._
 import org.testng.annotations.Test
@@ -27,6 +28,8 @@ import com.linkedin.photon.ml.test.SparkTestUtils
  * Integration tests for [[GameModel]].
  */
 class GameModelIntegTest extends SparkTestUtils {
+
+  import GameModelIntegTest._
 
   /**
    * Generate a toy fixed effect model.
@@ -192,14 +195,14 @@ class GameModelIntegTest extends SparkTestUtils {
 
     // Fixed effect model
     val glm = new LogisticRegressionModel(
-      CoefficientsTest.sparseCoefficients(numFeaturesPerModel("fixedFeatures"))(1,2,5)(11,21,51))
+      sparseCoefficients(numFeaturesPerModel("fixedFeatures"))(1,2,5)(11,21,51))
     val FEModel = new FixedEffectModel(sc.broadcast(glm), "fixedFeatures")
 
     // Random effect 1 has 2 items
     val numFeaturesRE1 = numFeaturesPerModel("RE1Features")
-    val RE1Item1 = CoefficientsTest.sparseCoefficients(numFeaturesRE1)(1,5,7)(111,511,911)
+    val RE1Item1 = sparseCoefficients(numFeaturesRE1)(1,5,7)(111,511,911)
     val glmRE11: GeneralizedLinearModel = new LogisticRegressionModel(RE1Item1)
-    val RE1Item2 = CoefficientsTest.sparseCoefficients(numFeaturesRE1)(1,2)(112,512)
+    val RE1Item2 = sparseCoefficients(numFeaturesRE1)(1,2)(112,512)
     val glmRE12: GeneralizedLinearModel = new LogisticRegressionModel(RE1Item2)
 
     val glmRE1RDD = sc.parallelize(List(("RE1Item1", glmRE11), ("RE1Item2", glmRE12)))
@@ -207,11 +210,11 @@ class GameModelIntegTest extends SparkTestUtils {
 
     // Random effect 2 has 3 items (of a different kind)
     val numFeaturesRE2 = numFeaturesPerModel("RE2Features")
-    val RE2Item1 = CoefficientsTest.sparseCoefficients(numFeaturesRE2)(3,4,6)(321,421,621)
+    val RE2Item1 = sparseCoefficients(numFeaturesRE2)(3,4,6)(321,421,621)
     val glmRE21: GeneralizedLinearModel = new LogisticRegressionModel(RE2Item1)
-    val RE2Item2 = CoefficientsTest.sparseCoefficients(numFeaturesRE2)(4,5)(322,422)
+    val RE2Item2 = sparseCoefficients(numFeaturesRE2)(4,5)(322,422)
     val glmRE22: GeneralizedLinearModel = new LogisticRegressionModel(RE2Item2)
-    val RE2Item3 = CoefficientsTest.sparseCoefficients(numFeaturesRE2)(2,7,8)(323,423,523)
+    val RE2Item3 = sparseCoefficients(numFeaturesRE2)(2,7,8)(323,423,523)
     val glmRE23: GeneralizedLinearModel = new LogisticRegressionModel(RE2Item3)
 
     val glmRE2RDD = sc.parallelize(List(("RE2Item1", glmRE21), ("RE2Item2", glmRE22), ("RE2Item3", glmRE23)))
@@ -231,14 +234,14 @@ class GameModelIntegTest extends SparkTestUtils {
 
     // Fixed effect model
     val glm = new LogisticRegressionModel(
-      CoefficientsTest.sparseCoefficients(numFeaturesPerModel("fixedFeatures"))(1,2,5)(11,21,51))
+      sparseCoefficients(numFeaturesPerModel("fixedFeatures"))(1,2,5)(11,21,51))
     val FEModel = new FixedEffectModel(sc.broadcast(glm), "fixedFeatures")
 
     // Random effect 1 has 2 items
     val numFeaturesRE1 = numFeaturesPerModel("RE1Features")
-    val RE1Item1 = CoefficientsTest.sparseCoefficients(numFeaturesRE1)(1,5,7)(111,511,911)
+    val RE1Item1 = sparseCoefficients(numFeaturesRE1)(1,5,7)(111,511,911)
     val glmRE11: GeneralizedLinearModel = new LogisticRegressionModel(RE1Item1)
-    val RE1Item2 = CoefficientsTest.sparseCoefficients(numFeaturesRE1)(1,2)(112,512)
+    val RE1Item2 = sparseCoefficients(numFeaturesRE1)(1,2)(112,512)
     val glmRE12: GeneralizedLinearModel = new LogisticRegressionModel(RE1Item2)
 
     val glmRE1RDD = sc.parallelize(List(("RE1Item1", glmRE11), ("RE1Item2", glmRE12)))
@@ -246,11 +249,11 @@ class GameModelIntegTest extends SparkTestUtils {
 
     // Random effect 2 has 3 items (of a different kind of model)
     val numFeaturesRE2 = numFeaturesPerModel("RE2Features")
-    val RE2Item1 = CoefficientsTest.sparseCoefficients(numFeaturesRE2)(3,4,6)(321,421,621)
+    val RE2Item1 = sparseCoefficients(numFeaturesRE2)(3,4,6)(321,421,621)
     val glmRE21: GeneralizedLinearModel = new PoissonRegressionModel(RE2Item1)
-    val RE2Item2 = CoefficientsTest.sparseCoefficients(numFeaturesRE2)(4,5)(322,422)
+    val RE2Item2 = sparseCoefficients(numFeaturesRE2)(4,5)(322,422)
     val glmRE22: GeneralizedLinearModel = new PoissonRegressionModel(RE2Item2)
-    val RE2Item3 = CoefficientsTest.sparseCoefficients(numFeaturesRE2)(2,7,8)(323,423,523)
+    val RE2Item3 = sparseCoefficients(numFeaturesRE2)(2,7,8)(323,423,523)
     val glmRE23: GeneralizedLinearModel = new PoissonRegressionModel(RE2Item3)
 
     val glmRE2RDD = sc.parallelize(List(("RE2Item1", glmRE21), ("RE2Item2", glmRE22), ("RE2Item3", glmRE23)))
@@ -259,4 +262,18 @@ class GameModelIntegTest extends SparkTestUtils {
     // This GAME model has 1 fixed effect, and 2 different random effect models
     GameModel(("fixed", FEModel), ("RE1", RE1Model), ("RE2", RE2Model))
   }
+}
+
+object GameModelIntegTest {
+
+  /**
+   * Helper method to create a [[Coefficients]] object with means stored as a [[SparseVector]] and no variances.
+   *
+   * @param length Length of new [[SparseVector]]
+   * @param indices Indices of values in new [[SparseVector]]
+   * @param nnz Ordered values (corresponding to indices) for new [[SparseVector]]
+   * @return New [[Coefficients]] object
+   */
+  private def sparseCoefficients(length: Int)(indices: Int*)(nnz: Double*) =
+    Coefficients(new SparseVector[Double](Array[Int](indices: _*), Array[Double](nnz: _*), length))
 }

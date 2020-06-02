@@ -14,7 +14,7 @@
  */
 package com.linkedin.photon.ml.model
 
-import breeze.linalg.{DenseVector, SparseVector, Vector, norm}
+import breeze.linalg.{Vector, norm}
 import breeze.stats.meanAndVariance
 
 import com.linkedin.photon.ml.constants.MathConst
@@ -31,10 +31,6 @@ import com.linkedin.photon.ml.util.{MathUtils, Summarizable, VectorUtils}
 case class Coefficients(means: Vector[Double], variancesOption: Option[Vector[Double]] = None)
   extends Summarizable {
 
-  // Force means and variances to be of the same type (dense or sparse). This seems reasonable
-  // and greatly reduces the number of combinations to check in unit testing.
-  require(variancesOption.isEmpty || variancesOption.get.getClass == means.getClass,
-    "Coefficients: If variances are provided, must be of the same vector type as means")
   // GAME over if variances are given but don't have the same length as the vector of means
   require(variancesOption.isEmpty || variancesOption.get.length == means.length,
     "Coefficients: Means and variances have different lengths")
@@ -78,7 +74,7 @@ case class Coefficients(means: Vector[Double], variancesOption: Option[Vector[Do
     }
     sb.append(s"Mean and stddev of the mean: ${meanAndVar.mean} ${meanAndVar.stdDev}\n")
     sb.append(s"l2 norm of the mean: $meansL2Norm\n")
-    variancesL2NormOption.map(norm => sb.append(s"l2 norm of the variance $norm"))
+    variancesL2NormOption.foreach(norm => sb.append(s"l2 norm of the variance $norm"))
 
     sb.toString()
   }

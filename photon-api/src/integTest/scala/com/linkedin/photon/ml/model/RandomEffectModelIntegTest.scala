@@ -14,6 +14,7 @@
  */
 package com.linkedin.photon.ml.model
 
+import breeze.linalg.SparseVector
 import org.testng.Assert._
 import org.testng.annotations.Test
 
@@ -26,6 +27,8 @@ import com.linkedin.photon.ml.test.SparkTestUtils
  * Integration tests for [[RandomEffectModel]].
  */
 class RandomEffectModelIntegTest extends SparkTestUtils {
+
+  import RandomEffectModelIntegTest._
 
   /**
    * Test that a [[RandomEffectModel]] must have the same coefficients, be computed on the same feature shard, and have
@@ -85,9 +88,9 @@ class RandomEffectModelIntegTest extends SparkTestUtils {
     val numFeatures = 10
 
     // Random effect with 2 items of the same type.
-    val randomEffectItem1 = CoefficientsTest.sparseCoefficients(numFeatures)(1,5,7)(111,511,911)
+    val randomEffectItem1 = sparseCoefficients(numFeatures)(1,5,7)(111,511,911)
     val glm1: GeneralizedLinearModel = new LogisticRegressionModel(randomEffectItem1)
-    val randomEffectItem2 = CoefficientsTest.sparseCoefficients(numFeatures)(1,2)(112,512)
+    val randomEffectItem2 = sparseCoefficients(numFeatures)(1,2)(112,512)
     val glm2: GeneralizedLinearModel = new LogisticRegressionModel(randomEffectItem2)
     val randomEffectRDD = sc.parallelize(List(("RandomEffectItem1", glm1), ("RandomEffectItem2", glm2)))
 
@@ -104,13 +107,27 @@ class RandomEffectModelIntegTest extends SparkTestUtils {
     val numFeatures = 10
 
     // Random effect with 2 items of differing types.
-    val randomEffectItem1 = CoefficientsTest.sparseCoefficients(numFeatures)(1,5,7)(111,511,911)
+    val randomEffectItem1 = sparseCoefficients(numFeatures)(1,5,7)(111,511,911)
     val glm1: GeneralizedLinearModel = new LogisticRegressionModel(randomEffectItem1)
-    val randomEffectItem2 = CoefficientsTest.sparseCoefficients(numFeatures)(1,2)(112,512)
+    val randomEffectItem2 = sparseCoefficients(numFeatures)(1,2)(112,512)
     val glm2: GeneralizedLinearModel = new PoissonRegressionModel(randomEffectItem2)
     val randomEffectRDD = sc.parallelize(List(("RandomEffectItem1", glm1), ("RandomEffectItem2", glm2)))
 
     // This should throw exception.
     new RandomEffectModel(randomEffectRDD, "RandomEffectModel", "RandomEffectFeatures")
   }
+}
+
+object RandomEffectModelIntegTest {
+
+  /**
+   * Helper method to create a [[Coefficients]] object with means stored as a [[SparseVector]] and no variances.
+   *
+   * @param length Length of new [[SparseVector]]
+   * @param indices Indices of values in new [[SparseVector]]
+   * @param nnz Ordered values (corresponding to indices) for new [[SparseVector]]
+   * @return New [[Coefficients]] object
+   */
+  private def sparseCoefficients(length: Int)(indices: Int*)(nnz: Double*) =
+    Coefficients(new SparseVector[Double](Array[Int](indices: _*), Array[Double](nnz: _*), length))
 }

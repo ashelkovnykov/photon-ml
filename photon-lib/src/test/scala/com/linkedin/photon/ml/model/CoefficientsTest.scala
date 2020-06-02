@@ -30,35 +30,13 @@ class CoefficientsTest {
   @DataProvider(name = "invalidVectorProvider")
   def makeInvalidVectors(): Array[Array[Vector[Double]]] =
     Array(
-      Array(dense(0,0,3,0), sparse(4)(0,2)(0,3)),
-      Array(sparse(4)(0,2)(0,3), dense(0,0,3,0)),
       Array(dense(1,2,3), dense(1,2)),
       Array(sparse(2)(1,3)(0,2), sparse(3)(4,5)(0,2))
     )
 
   @Test(dataProvider = "invalidVectorProvider", expectedExceptions = Array(classOf[IllegalArgumentException]))
-  def testPreconditions(v1: Vector[Double], v2: Vector[Double]): Unit =
-    new Coefficients(v1, Some(v2))
-
-  @Test
-  def testEquals(): Unit = {
-
-    val denseCoefficients1 = denseCoefficients(1,0,2,0)
-    val denseCoefficients2 = denseCoefficients(1,0,3,0)
-    val sparseCoefficients1 = sparseCoefficients(4)(0,2)(1,3)
-    val sparseCoefficients2 = sparseCoefficients(4)(0,2)(1,2)
-
-    assertFalse(denseCoefficients1 == denseCoefficients2)
-    assertTrue(denseCoefficients1 == denseCoefficients1)
-    assertTrue(denseCoefficients2 == denseCoefficients2)
-
-    assertFalse(sparseCoefficients1 == sparseCoefficients2)
-    assertTrue(sparseCoefficients1 == sparseCoefficients1)
-    assertTrue(sparseCoefficients2 == sparseCoefficients2)
-
-    assertFalse(denseCoefficients1 == sparseCoefficients1)
-    assertFalse(sparseCoefficients2 == denseCoefficients2)
-  }
+  def testPreconditions(means: Vector[Double], variances: Vector[Double]): Unit =
+    new Coefficients(means, Some(variances))
 
   @Test
   def testComputeScore(): Unit =
@@ -66,40 +44,82 @@ class CoefficientsTest {
           v2 <- List(dense(-1,0,0,1), sparse(4)(0,3)(-1,1)) } {
       assertEquals(Coefficients(v1).computeScore(v2), v1.dot(v2), CommonTestUtils.HIGH_PRECISION_TOLERANCE)
     }
+
+  @Test
+  def testEquals(): Unit = {
+
+    val denseMeans1 = dense(1, 0, 2, 0)
+    val denseMeans2 = dense(1, 0, 2)
+    val denseMeans3 = dense(1, 0, 3, 0)
+
+    val denseVariances1 = dense(0, 5, 0, 7)
+    val denseVariances2 = dense(0, 5, 0)
+    val denseVariances3 = dense(0, 5, 0, 9)
+
+    val sparseMeans1 = sparse(4)(0, 2)(1, 2)
+
+    val sparseVariances = sparse(4)(1, 3)(5, 7)
+
+    val denseCoefficientsNoVariances1 = Coefficients(denseMeans1)
+    val denseCoefficientsNoVariances2 = Coefficients(denseMeans2)
+    val denseCoefficientsNoVariances3 = Coefficients(denseMeans3)
+
+    val denseCoefficientsDenseVariances1 = Coefficients(denseMeans1, Some(denseVariances1))
+    val denseCoefficientsDenseVariances2 = Coefficients(denseMeans2, Some(denseVariances2))
+    val denseCoefficientsDenseVariances3 = Coefficients(denseMeans1, Some(denseVariances3))
+
+    val denseCoefficientsSparseVariances = Coefficients(denseMeans1, Some(sparseVariances))
+
+    val sparseCoefficientsNoVariances = Coefficients(sparseMeans1)
+
+    assertTrue(denseCoefficientsNoVariances1 == denseCoefficientsNoVariances1)
+    assertTrue(denseCoefficientsNoVariances2 == denseCoefficientsNoVariances2)
+    assertTrue(denseCoefficientsNoVariances3 == denseCoefficientsNoVariances3)
+
+    assertTrue(denseCoefficientsDenseVariances1 == denseCoefficientsDenseVariances1)
+    assertTrue(denseCoefficientsDenseVariances2 == denseCoefficientsDenseVariances2)
+    assertTrue(denseCoefficientsDenseVariances3 == denseCoefficientsDenseVariances3)
+
+    assertTrue(denseCoefficientsSparseVariances == denseCoefficientsSparseVariances)
+
+    assertTrue(sparseCoefficientsNoVariances == sparseCoefficientsNoVariances)
+
+    // Means are not of same class
+    assertFalse(denseCoefficientsNoVariances1 == sparseCoefficientsNoVariances)
+    // Means are not of same length
+    assertFalse(denseCoefficientsNoVariances1 == denseCoefficientsNoVariances2)
+    // Means have different values
+    assertFalse(denseCoefficientsNoVariances1 == denseCoefficientsNoVariances3)
+
+    // One missing variance
+    assertFalse(denseCoefficientsNoVariances1 == denseCoefficientsDenseVariances1)
+    // Variances are not of same class
+    assertFalse(denseCoefficientsDenseVariances1 == denseCoefficientsSparseVariances)
+    // Variances are not of same length
+    assertFalse(denseCoefficientsDenseVariances1 == denseCoefficientsDenseVariances2)
+    // Variance values not the same
+    assertFalse(denseCoefficientsDenseVariances1 == denseCoefficientsDenseVariances3)
+  }
 }
 
 object CoefficientsTest {
 
   /**
+   * Helper method to create [[DenseVector]] objects.
    *
-   * @param values
-   * @return
+   * @param values Ordered [[DenseVector]] values
+   * @return New [[DenseVector]] object containing input values
    */
-  def dense(values: Double*) = new DenseVector[Double](Array[Double](values: _*))
+  def dense(values: Double*): DenseVector[Double] = new DenseVector[Double](Array[Double](values: _*))
 
   /**
+   * Helper method to create [[SparseVector]] objects.
    *
-   * @param length
-   * @param indices
-   * @param nnz
-   * @return
+   * @param length Length of new [[SparseVector]]
+   * @param indices Indices of values in new [[SparseVector]]
+   * @param nnz Ordered values (corresponding to indices) for new [[SparseVector]]
+   * @return New [[SparseVector]] object containing input values at input indices
    */
-  def sparse(length: Int)(indices: Int*)(nnz: Double*) =
+  def sparse(length: Int)(indices: Int*)(nnz: Double*): SparseVector[Double] =
     new SparseVector[Double](Array[Int](indices: _*), Array[Double](nnz: _*), length)
-
-  /**
-   *
-   * @param values
-   * @return
-   */
-  def denseCoefficients(values: Double*) = Coefficients(dense(values: _*))
-
-  /**
-   *
-   * @param length
-   * @param indices
-   * @param nnz
-   * @return
-   */
-  def sparseCoefficients(length: Int)(indices: Int*)(nnz: Double*) = Coefficients(sparse(length)(indices: _*)(nnz: _*))
 }

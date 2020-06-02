@@ -471,12 +471,18 @@ object ModelProcessingUtilsIntegTest {
   private val NUM_FEATURES = 7
   private val FEATURE_NAMES = (0 until NUM_FEATURES).map(getFeatureName)
 
-  private val FIXED_COEFFICIENTS = CoefficientsTest.denseCoefficients(0D, 11D, 21D, 31D, 41D, 51D, 61D)
-  private val RE11_COEFFICIENTS = CoefficientsTest.sparseCoefficients(NUM_FEATURES)(1, 2)(111D, 211D)
-  private val RE12_COEFFICIENTS = CoefficientsTest.sparseCoefficients(NUM_FEATURES)(1, 3)(112D, 312D)
-  private val RE21_COEFFICIENTS = CoefficientsTest.sparseCoefficients(NUM_FEATURES)(1, 4)(121D, 421D)
-  private val RE22_COEFFICIENTS = CoefficientsTest.sparseCoefficients(NUM_FEATURES)(1, 5)(122D, 522D)
-  private val RE23_COEFFICIENTS = CoefficientsTest.sparseCoefficients(NUM_FEATURES)(1, 6)(123D, 623D)
+  private val FIXED_COEFFICIENTS =
+    Coefficients(new DenseVector[Double](Array[Double](0D, 11D, 21D, 31D, 41D, 51D, 61D)))
+  private val RE11_COEFFICIENTS =
+    Coefficients(new SparseVector[Double](Array[Int](1, 2), Array[Double](111D, 211D), NUM_FEATURES))
+  private val RE12_COEFFICIENTS =
+    Coefficients(new SparseVector[Double](Array[Int](1, 3), Array[Double](112D, 312D), NUM_FEATURES))
+  private val RE21_COEFFICIENTS =
+    Coefficients(new SparseVector[Double](Array[Int](1, 4), Array[Double](121D, 421D), NUM_FEATURES))
+  private val RE22_COEFFICIENTS =
+    Coefficients(new SparseVector[Double](Array[Int](1, 5), Array[Double](122D, 522D), NUM_FEATURES))
+  private val RE23_COEFFICIENTS =
+    Coefficients(new SparseVector[Double](Array[Int](1, 6), Array[Double](123D, 623D), NUM_FEATURES))
 
   private val EPSILON = 1e-6
   private val TASK_TYPE = TaskType.LOGISTIC_REGRESSION

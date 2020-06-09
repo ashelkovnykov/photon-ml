@@ -124,10 +124,11 @@ protected[ml] class DistributedOptimizationProblem[Objective <: DistributedObjec
   override def run(input: RDD[LabeledPoint], initialModel: GeneralizedLinearModel): GeneralizedLinearModel = {
 
     val normalizationContext = optimizer.getNormalizationContext
-    val (optimizedCoefficients, _) = optimizer.optimize(objectiveFunction, initialModel.coefficients.means)(input)
+    val (normalizedCoefficients, _) = optimizer.optimize(objectiveFunction, initialModel.coefficients.means)(input)
+    val optimizedCoefficients = normalizationContext.value.modelToOriginalSpace(normalizedCoefficients)
     val optimizedVariances = computeVariances(input, optimizedCoefficients)
 
-    createModel(normalizationContext, optimizedCoefficients, optimizedVariances)
+    createModel(optimizedCoefficients, optimizedVariances)
   }
 
   /**

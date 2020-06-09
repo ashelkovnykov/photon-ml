@@ -224,7 +224,7 @@ object GeneralizedLinearOptimizationProblemTest {
     def publicInitializeZeroModel(dimension: Int): GeneralizedLinearModel = initializeZeroModel(dimension)
 
     /**
-     * Publi version of [[createModel]]
+     * Public version of [[createModel]]
      */
     def publicCreateModel(coefficients: Vector[Double], variances: Option[Vector[Double]]): GeneralizedLinearModel =
       createModel(coefficients, variances)
